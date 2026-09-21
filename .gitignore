@@ -1,0 +1,34 @@
+# Local/private hardware specifications and calibration
+/hardware_requirements_ko.txt
+/Config/
+/Arduino_Yun_RC_Car/HARDWARE_SPEC_KO.md
+/Arduino_Yun_RC_Car/PowerOnConfig.h
+/STM32_F103_RC_Car/Inc/rc_config.h
+/STM32_F103_Encoder_Test/ENCODER_WIRING_REPORT_KO.md
+/Reports/
+
+# Generated firmware and compiler output
+**/Build/
+**/build/
+*.bin
+*.elf
+*.hex
+*.o
+*.eep
+
+# Python/editor/OS caches
+**/__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
