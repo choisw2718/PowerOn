@@ -3,7 +3,7 @@
 ## 1. 빌드
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File Tools\build_f103_project.ps1
+powershell -ExecutionPolicy Bypass -File tools\build_f103_project.ps1
 ```
 
 `STM32_F103_RC_Car\Build\` 아래 세 파일이 생성된다:
@@ -19,7 +19,7 @@ powershell -ExecutionPolicy Bypass -File Tools\build_f103_project.ps1
 **방법 A — 스크립트 (권장):** ST-LINK SWD로 굽고, CLI가 없으면 자동으로 USB 드라이브 복사로 넘어간다.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File Tools\flash_f103_project.ps1
+powershell -ExecutionPolicy Bypass -File tools\flash_f103_project.ps1
 ```
 
 **방법 B — 드래그앤드롭:** 보드를 USB로 연결하면 뜨는 `NODE_F103RB` 드라이브에 **`.bin` 파일을** 복사한다. (`.elf`를 넣으면 조용히 실패하고 이전 펌웨어가 그대로 남는다 — 기존에 제어가 안 됐던 가장 유력한 원인.)
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File Tools\flash_f103_project.ps1
 
 ```powershell
 python -m pip install pyserial   # 최초 1회
-python Tools\keyboard_drive.py   # COM 포트 자동 감지
+python tools\keyboard_drive.py   # COM 포트 자동 감지
 ```
 
 보정 완료 후에는 W/A/S/D로 주행하고, `x`/Space로 모터 정지(조향 유지), `i`로 IDLE(모터 정지 + 앞바퀴 일자 정렬), `q`로 종료한다. 현재 RB35GM 감속비·실측 카운트·PID가 미확정이므로 키보드 도구가 `closed_loop_ready=1`을 확인하기 전까지 W/S 속도 입력을 거부한다.

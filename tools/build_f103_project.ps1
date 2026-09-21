@@ -131,5 +131,5 @@ Write-Host "  ELF: $elf"
 Write-Host ("  BIN: {0} ({1:N0} bytes, board upload limit 500 KB)" -f $bin, $binSize)
 Write-Host "  HEX: $hex"
 Write-Host "  Upload copy: $uploadBin"
-Write-Host "Flash: powershell -ExecutionPolicy Bypass -File Tools\flash_f103_project.ps1"
+Write-Host "Flash: powershell -ExecutionPolicy Bypass -File tools\flash_f103_project.ps1"
 Write-Host "   or: copy the .bin onto the NODE_F103RB USB drive"

@@ -13,9 +13,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORT_DIR = ROOT / "Reports"
+REPORT_DIR = ROOT / "reports"
 ASSET_DIR = REPORT_DIR / "assets"
-REPORT_PATH = REPORT_DIR / "PowerOn_RC_Car_Wiring_Report_KO.docx"
+REPORT_PATH = REPORT_DIR / "poweron-rc-car-wiring-report.ko.docx"
 DIAGRAM_PATH = ASSET_DIR / "poweron_wiring_topology.png"
 
 # Resolved compact_reference_guide tokens.
@@ -1005,7 +1005,7 @@ def build_report():
     add_heading(doc, "참고 자료", 1)
     refs = [
         ("프로젝트 설정", "STM32_F103_RC_Car/Inc/rc_config.h"),
-        ("하드웨어 조건", "hardware_requirements_ko.txt"),
+        ("하드웨어 조건", "docs/hardware-requirements.ko.md"),
         ("모터/엔코더 상수", "Config/drive_hardware.h"),
         ("서보 상수", "Config/steering_servo_hardware.h"),
         ("ST UM1724 Rev.17", "STM32 Nucleo-64 boards (MB1136), Table 12 및 Table 27"),

@@ -1,8 +1,8 @@
 """Keyboard serial controller for the STM32 vehicle.
 
 Example:
-    python Tools/keyboard_drive.py              (auto-detects the ST-LINK COM port)
-    python Tools/keyboard_drive.py --port COM5 --baud 115200
+    python tools/keyboard_drive.py              (auto-detects the ST-LINK COM port)
+    python tools/keyboard_drive.py --port COM5 --baud 115200
 
 Keys:
     W speed up
@@ -17,7 +17,7 @@ Keys:
     Q quit this PC program
 
 Programmatic command example:
-    python Tools/keyboard_drive.py --port COM5 --command "@DRIVE 0.30 10"
+    python tools/keyboard_drive.py --port COM5 --command "@DRIVE 0.30 10"
 """
 
 from __future__ import annotations

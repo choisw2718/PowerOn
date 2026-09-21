@@ -12,7 +12,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if (!(Test-Path -LiteralPath $bin)) {
-    throw ".bin not found. Build first: powershell -ExecutionPolicy Bypass -File Tools\build_f103_project.ps1"
+    throw ".bin not found. Build first: powershell -ExecutionPolicy Bypass -File tools\build_f103_project.ps1"
 }
 
 # Copy to an ASCII-only local path: some STM32_Programmer_CLI versions cannot

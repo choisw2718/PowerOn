@@ -1,11 +1,11 @@
 # Local/private hardware specifications and calibration
-/hardware_requirements_ko.txt
+/docs/hardware-requirements.ko.md
 /Config/
-/Arduino_Yun_RC_Car/HARDWARE_SPEC_KO.md
+/Arduino_Yun_RC_Car/hardware-specification.ko.md
 /Arduino_Yun_RC_Car/PowerOnConfig.h
 /STM32_F103_RC_Car/Inc/rc_config.h
-/STM32_F103_Encoder_Test/ENCODER_WIRING_REPORT_KO.md
-/Reports/
+/STM32_F103_Encoder_Test/encoder-wiring-report.ko.md
+/reports/
 
 # Generated firmware and compiler output
 **/Build/
