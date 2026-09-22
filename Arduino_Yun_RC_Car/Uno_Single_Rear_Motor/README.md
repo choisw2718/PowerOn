@@ -5,11 +5,11 @@
 - 제어 보드: Arduino Uno R3
 - 구동계: 중앙의 12 V DC 모터 1개 + 동력이 연결되지 않은 베어링 바퀴 2개
 - 조향계: 앞바퀴 2개와 기존 조향 서보 2개 유지
-- 통신: 노트북과 Uno 사이의 USB Serial, 115200 baud
+- 통신: USB Serial 115200 baud 또는 ESP-01 Wi-Fi/TCP + UART 38400 baud
 - 제어 방식: 엔코더/PID 없는 open-loop PWM 전압 명령
-- 사용하지 않는 기능: Bluetooth, Wi-Fi, ESP32, 엔코더, 속도 피드백, PID
+- 사용하지 않는 기능: Bluetooth, ESP32, 엔코더, 속도 피드백, PID
 
-현재 원격 주행 코드의 기준은 이 단일 모터 버전이다. 중앙 후륜 모터는 드라이버 채널 A 하나로만 구동하며, 채널 B나 두 번째 엔코더가 연결되어 있지 않아도 주행 명령을 처리한다. Wi-Fi 모듈은 다음 단계에서 이 스케치의 줄 단위 명령 인터페이스에 연결한다.
+현재 원격 주행 코드의 기준은 이 단일 모터 버전이다. 중앙 후륜 모터는 드라이버 채널 A 하나로만 구동하며, 채널 B나 두 번째 엔코더가 연결되어 있지 않아도 주행 명령을 처리한다. ESP-01은 자체 Wi-Fi AP와 TCP 서버를 열고, 받은 줄 단위 명령을 Uno로 전달한다.
 
 ## 파일
 
@@ -17,6 +17,9 @@
 |---|---|
 | `Uno_Single_Rear_Motor.ino` | Uno 펌웨어 |
 | `WIRING.ko.md` | 단일 모터, 드라이버, 서보 및 전원 배선 가이드 |
+| `WiFi_ESP01/WiFi_ESP01.ino` | ESP-01 AP 및 TCP-UART 브리지 펌웨어 |
+| `WiFi_ESP01/README.md` | ESP8266 코어 설치 및 ESP 펌웨어 업로드 절차 |
+| `wifi_control.py` | Wi-Fi TCP 키보드 조종기 |
 | `serial_control.py` | 노트북에서 명령을 보내는 대화형 Python 도구 |
 | `requirements.txt` | 노트북 도구의 `pyserial` 의존성 |
 
@@ -34,6 +37,8 @@ Arduino IDE의 스케치 폴더 규칙에 맞게 폴더와 `.ino` 파일 이름�
 | 중앙 후륜 모터 활성화 | D3 | 드라이버 채널 A ENABLE |
 | 왼쪽 서보 신호 | D5 | 기존 왼쪽 서보 채널 |
 | 오른쪽 서보 신호 | D6 | 기존 오른쪽 서보 채널 |
+| ESP UART 수신 | A0 | ESP 5번 TXD에서 직접 연결 |
+| ESP UART 송신 | A1 | 레벨 변환을 거쳐 ESP 4번 RXD에 연결 |
 | USB Serial | D0/D1 내부 연결 | Uno USB 포트만 사용 |
 
 드라이버 ENABLE은 기존 사양대로 **low-active**다. 정지 시 펌웨어는 `ENABLE=HIGH`, `PWM=LOW`, `IN1=LOW`, `IN2=LOW`로 만든다. 방향이 바뀌면 먼저 출력을 끄고 50 ms 후 반대 방향을 구동한다.
@@ -56,7 +61,34 @@ Arduino IDE에서 `Uno_Single_Rear_Motor.ino`를 열고 다음을 선택한다.
 - Board: `Arduino Uno`
 - Port: 연결된 Uno의 COM 포트
 
-컴파일 후 업로드한다. 이 스케치는 추가 Arduino 라이브러리를 사용하지 않는다.
+컴파일 후 업로드한다. `SoftwareSerial`은 Arduino AVR 코어에 포함된 라이브러리를 사용한다.
+
+## Wi-Fi 원격 조종
+
+ESP-01에는 `WiFi_ESP01/WiFi_ESP01.ino`를 별도로 업로드해야 한다. 자세한 업로드 배선과 보드 설정은 해당 폴더의 `README.md`를 따른다.
+
+기본 Wi-Fi 설정은 다음과 같다.
+
+```text
+SSID:     PowerOn-Car
+Password: poweron-car
+ESP IP:   192.168.4.1
+TCP port: 5000
+```
+
+안전한 장소에서 기본 비밀번호를 변경한 뒤 사용한다. 노트북을 `PowerOn-Car` Wi-Fi에 연결하고 이 폴더에서 다음을 실행한다.
+
+```powershell
+py wifi_control.py
+```
+
+다른 IP 또는 포트를 사용한다면 다음처럼 지정한다.
+
+```powershell
+py wifi_control.py --host 192.168.4.1 --port 5000
+```
+
+키 조작은 USB용 `serial_control.py`와 동일하다. Wi-Fi 조종기는 주행 중 0.5초마다 `KEEPALIVE`를 보내며, TCP 연결이 끊기면 ESP는 Uno에 `IDLE`을 보낸다. 이것과 별도로 Uno 자체 watchdog도 마지막 명령으로부터 1.5초 후 모터를 정지한다.
 
 ## Serial Monitor로 최초 시험
 
@@ -135,4 +167,4 @@ py serial_control.py COM5
 
 ## 다음 단계
 
-현재 단계에서는 PWM 기본 구동과 방향 전환만 검증한다. 이 동작과 전원/발열/기구 구성이 안정된 뒤에만 엔코더 배선, 속도 측정, PID 제어를 이 폴더 안에서 별도 단계로 추가한다.
+먼저 바퀴를 띄운 상태에서 USB 제어를 검증하고, 이후 모터 전원을 끈 상태에서 Wi-Fi 명령과 조향만 확인한다. Wi-Fi 연결 해제 시 모터가 정지하는 것까지 검증한 뒤 지상 주행을 시작한다. 전원·발열·기구 구성이 안정된 뒤에만 엔코더 배선, 속도 측정 및 PID 제어를 별도 단계로 추가한다.

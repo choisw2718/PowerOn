@@ -107,7 +107,7 @@ ESP8266 ESP-01
 Arduino Uno R3
 ```
 
-ESP8266이 네트워크에서 받은 제어 정보를 UART로 Arduino에 전달하는 구성을 우선 고려한다. 필요하면 네트워크 프로토콜 또는 일부 제어 로직을 ESP8266 펌웨어에서 처리할 수도 있다. 최종 역할 분담과 통신 프로토콜은 구현 단계에서 결정한다.
+ESP8266은 `PowerOn-Car` AP와 TCP 서버를 실행하고, 네트워크에서 받은 줄 단위 제어 명령을 UART로 Arduino에 전달한다. 모터·조향 출력과 최종 안전 watchdog은 Arduino가 담당한다.
 
 ## 7. Arduino 연결에 필요한 기본 신호
 
@@ -123,24 +123,38 @@ ESP EN   → HIGH / 3.3 V
 
 `RST`, `GPIO0`, `GPIO2`의 연결은 정상 부팅, 펌웨어 다운로드 모드 및 현재 설치된 펌웨어에 맞춰 결정한다.
 
-현재 차량 펌웨어에서 Uno의 `D0/D1`은 USB 시리얼 업로드와 제어에 사용되고 있다. ESP UART에 이 핀을 함께 연결하면 업로드, 디버깅 및 기존 제어 통신과 충돌할 수 있으므로, 실제 통합 전에 다음 중 사용할 구조를 별도로 설계해야 한다.
+Uno의 `D0/D1`은 USB 업로드와 디버깅용으로 유지한다. ESP UART는 Uno의 A0/A1을 디지털 핀으로 사용한 38400 baud `SoftwareSerial`에 연결한다.
 
-- 기존 USB 시리얼 대신 ESP를 하드웨어 UART에 연결
-- 사용 가능한 다른 핀과 소프트웨어 UART 사용 가능성 검토
-- 업로드·디버깅 시 ESP UART를 분리할 수 있는 스위치 또는 점퍼 구성
-- Arduino와 ESP 사이의 명령 형식, baud rate 및 오류 처리 정의
+```text
+ESP TX / 5번 → Uno A0 / SoftwareSerial RX
+ESP RX / 4번 ← Uno A1 / SoftwareSerial TX (레벨 변환 경유)
+```
 
-## 8. 펌웨어 관련 확인 사항
+## 8. 펌웨어 구성
 
-ESP8266 내부에서는 별도의 펌웨어가 동작한다. 현재 다음 항목은 확정되지 않았다.
+ESP8266 내부에서는 별도의 펌웨어가 동작한다. 이 프로젝트에서는 AT firmware 대신 직접 작성한 다음 펌웨어를 사용한다.
+
+```text
+Uno_Single_Rear_Motor/WiFi_ESP01/WiFi_ESP01.ino
+```
+
+이 펌웨어를 ESP-01에 직접 업로드하면 기존 AT firmware는 덮어써진다. 프로젝트 펌웨어의 구성은 다음과 같다.
+
+- `PowerOn-Car` Wi-Fi AP 생성
+- 고정 주소 `192.168.4.1`
+- TCP 포트 `5000`에서 조종기 1개 연결
+- Uno와 `38400 baud` UART 통신
+- TCP 연결 및 해제 시 `IDLE` 명령으로 안전 상태 요청
+- TCP 명령과 Uno 응답의 양방향 전달
+
+펌웨어를 업로드하기 전에는 다음 기존 상태를 확인하는 것이 좋다.
 
 - AT firmware 설치 여부 및 버전
 - 현재 UART baud rate
 - 기존 펌웨어의 동작 상태
 - Flash mode 및 메모리 설정
-- ESP8266 펌웨어를 별도로 작성해야 하는지 여부
 
-AT firmware가 정상 설치되어 있다면 Arduino가 UART로 AT command를 전송하는 방식을 사용할 수 있다. 요구 기능이나 안정성에 따라 ESP8266용 펌웨어를 직접 작성하는 방식도 가능하다. 현재 단계에서는 어느 방식으로도 확정하지 않는다.
+현재 확인된 1 MB Flash 가정을 기준으로 `Generic ESP8266 Module`, `1MB (FS:64KB OTA:~470KB)`, `DOUT` 설정을 사용한다.
 
 ## 9. 연결 전 점검 절차
 
@@ -151,9 +165,9 @@ AT firmware가 정상 설치되어 있다면 Arduino가 UART로 AT command를 �
 5. 전류 여유가 충분한 3.3 V 전원과 레벨 변환 회로를 준비한다.
 6. 모터 구동부를 정지시킨 상태에서 ESP의 정상 부팅 여부를 확인한다.
 7. UART 출력으로 부팅 로그와 현재 baud rate를 확인한다.
-8. AT command 응답 또는 기존 펌웨어 동작을 확인한다.
-9. Wi-Fi 검색, 연결 및 통신 가능 여부를 시험한다.
-10. Arduino 통합 전에 장시간 동작 시 전원 전압 강하, 재부팅 및 발열 여부를 확인한다.
+8. 필요하면 기존 AT firmware 상태를 기록한 뒤 프로젝트 ESP 펌웨어를 업로드한다.
+9. `PowerOn-Car` Wi-Fi 검색, 연결 및 TCP 통신 가능 여부를 시험한다.
+10. Arduino 통합 후 장시간 동작 시 전원 전압 강하, 재부팅 및 발열 여부를 확인한다.
 
 ## 10. 현재 정보 요약
 
@@ -164,8 +178,8 @@ Wi-Fi:             2.4 GHz, IEEE 802.11 b/g/n
 Logic voltage:     3.3 V
 Flash:             MD25D80SIG, 8 Mbit / 1 MB SPI NOR
 Vehicle MCU:       Arduino Uno R3
-Expected link:     UART
-Firmware status:   미확인
+Project link:      UART 38400 baud on Uno A0/A1
+Project firmware:  WiFi_ESP01.ino 구현 및 컴파일 완료, 실물 업로드 필요
 Pin orientation:   미확인
 ```
 
@@ -177,9 +191,9 @@ Pin orientation:   미확인
 - [ ] VCC / GND 위치 확인
 - [ ] TX / RX 위치 확인
 - [ ] EN / RST / GPIO0 / GPIO2 연결 조건 확인
-- [ ] 현재 펌웨어 및 버전 확인
-- [ ] UART baud rate 확인
+- [ ] 필요한 경우 기존 펌웨어 및 버전 기록
+- [ ] 프로젝트 ESP 펌웨어 실물 업로드
 - [ ] 정상 부팅 여부 확인
 - [ ] Wi-Fi 연결 및 통신 시험
 - [ ] 안정적인 3.3 V 전원의 요구 전류와 순간 전류 대응 확인
-- [ ] Uno의 기존 USB 시리얼과 ESP UART의 공존 방식 결정
+- [x] Uno USB 시리얼과 ESP UART의 공존 방식 결정 — D0/D1 USB, A0/A1 ESP

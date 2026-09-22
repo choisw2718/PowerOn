@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <SoftwareSerial.h>
 #include <avr/interrupt.h>
 #include <ctype.h>
 #include <math.h>
@@ -9,7 +10,7 @@
  * Independent Arduino Uno controller for:
  *   - one encoderless 12 V rear DC motor,
  *   - two front steering servos,
- *   - line-oriented commands from USB Serial now, and from an ESP8266 later.
+ *   - line-oriented commands from USB Serial and an ESP-01 Wi-Fi bridge.
  *
  * The motor driver is the existing MAI-2MT-DC V3.0. Only its channel A is
  * used. Motor power comes from an external 12 V supply; never from the Uno.
@@ -37,6 +38,12 @@ const uint8_t kUnusedMotorPwmPin = 10;
 const uint8_t kUnusedMotorIn1Pin = 7;
 const uint8_t kUnusedMotorIn2Pin = 8;
 const uint8_t kUnusedMotorEnablePin = 11;
+
+/* ESP-01 UART. ESP TX -> A0; A1 -> level shifter -> ESP RX. */
+const uint8_t kEspRxPin = A0;
+const uint8_t kEspTxPin = A1;
+const uint32_t kEspUartBaud = 38400UL;
+SoftwareSerial espSerial(kEspRxPin, kEspTxPin);
 
 /* Existing two-servo wiring and calibration. */
 const uint8_t kLeftServoPin = 5;
@@ -127,9 +134,16 @@ uint32_t commandTimeoutMs = kDefaultCommandTimeoutMs;
 uint32_t timeoutStopCount = 0;
 
 const uint8_t kSerialLineCapacity = 64;
-char serialLine[kSerialLineCapacity];
-uint8_t serialLineLength = 0;
-bool serialDiscardUntilEol = false;
+
+struct CommandLineReceiver
+{
+  char line[kSerialLineCapacity];
+  uint8_t length;
+  bool discardUntilEol;
+};
+
+CommandLineReceiver usbReceiver = {};
+CommandLineReceiver espReceiver = {};
 
 float clampFloat(float value, float minimum, float maximum)
 {
@@ -520,7 +534,7 @@ void printStatus(Print &out)
 void printHelp(Print &out)
 {
   out.println(F("PowerOn Uno single rear motor controller"));
-  out.println(F("Line commands (115200 baud, newline):"));
+  out.println(F("Line commands (USB 115200 / ESP UART 38400, newline):"));
   out.println(F("  DRIVE <-12.0..12.0> <deg>  reliable motor voltage + steering"));
   out.println(F("  VOLTAGE <-12.0..12.0>  signed nominal average motor voltage"));
   out.println(F("  MOTOR <-100..100>      signed PWM duty percent"));
@@ -714,45 +728,55 @@ bool executeCommand(char *line, Print &out)
   return false;
 }
 
-void pollSerial()
+void pollCommandStream(Stream &input,
+                       Print &output,
+                       CommandLineReceiver &receiver)
 {
-  while (Serial.available() > 0)
+  while (input.available() > 0)
   {
-    const char incoming = static_cast<char>(Serial.read());
+    const char incoming = static_cast<char>(input.read());
 
-    if (serialDiscardUntilEol)
+    if (receiver.discardUntilEol)
     {
       if (incoming == '\r' || incoming == '\n')
       {
-        serialDiscardUntilEol = false;
+        receiver.discardUntilEol = false;
       }
       continue;
     }
 
     if (incoming == '\r' || incoming == '\n')
     {
-      if (serialLineLength == 0U)
+      if (receiver.length == 0U)
       {
         continue;
       }
-      serialLine[serialLineLength] = '\0';
-      if (!executeCommand(serialLine, Serial))
+      receiver.line[receiver.length] = '\0';
+      if (!executeCommand(receiver.line, output))
       {
-        Serial.println(F("ERR bad command or arguments; send HELP"));
+        output.println(F("ERR bad command or arguments; send HELP"));
       }
-      serialLineLength = 0;
+      receiver.length = 0U;
       continue;
     }
 
-    if (serialLineLength < (kSerialLineCapacity - 1U))
+    if (incoming < 0x20 || incoming > 0x7e)
     {
-      serialLine[serialLineLength++] = incoming;
+      receiver.length = 0U;
+      receiver.discardUntilEol = true;
+      output.println(F("ERR non-ASCII command discarded"));
+      continue;
+    }
+
+    if (receiver.length < (kSerialLineCapacity - 1U))
+    {
+      receiver.line[receiver.length++] = incoming;
     }
     else
     {
-      serialLineLength = 0;
-      serialDiscardUntilEol = true;
-      Serial.println(F("ERR line too long; discarded"));
+      receiver.length = 0U;
+      receiver.discardUntilEol = true;
+      output.println(F("ERR line too long; discarded"));
     }
   }
 }
@@ -769,6 +793,7 @@ void checkCommandTimeout()
     commandMotorPercent(0.0f);
     ++timeoutStopCount;
     Serial.println(F("TIMEOUT STOP"));
+    espSerial.println(F("TIMEOUT STOP"));
   }
 }
 
@@ -810,15 +835,19 @@ void setup()
   applySteering(0.0f);
 
   Serial.begin(115200);
+  espSerial.begin(kEspUartBaud);
+  espSerial.listen();
   delay(50);
   lastMotorCommandMs = millis();
   Serial.println(F("PowerOn Uno single rear motor: outputs safe; ready"));
   printHelp(Serial);
+  espSerial.println(F("READY PowerOn Uno single rear motor"));
 }
 
 void loop()
 {
-  pollSerial();
+  pollCommandStream(Serial, Serial, usbReceiver);
+  pollCommandStream(espSerial, espSerial, espReceiver);
   checkCommandTimeout();
   serviceMotor();
 }
