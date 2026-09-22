@@ -163,10 +163,14 @@ class SerialController:
         if words[0] in {"STOP", "IDLE"}:
             self.motor_running.clear()
             return
-        if len(words) != 2 or words[0] not in {"VOLTAGE", "MOTOR"}:
+        if words[0] == "DRIVE" and len(words) == 3:
+            value_word = words[1]
+        elif len(words) == 2 and words[0] in {"VOLTAGE", "MOTOR"}:
+            value_word = words[1]
+        else:
             return
         try:
-            nonzero = abs(float(words[1])) > 1e-9
+            nonzero = abs(float(value_word)) > 1e-9
         except ValueError:
             return
         if nonzero:
@@ -242,30 +246,30 @@ def main() -> int:
 
                 if lower_key == "w":
                     motor_voltage = step_motor_voltage(motor_voltage, True)
-                    command = f"VOLTAGE {motor_voltage:.1f}"
+                    command = f"DRIVE {motor_voltage:.1f} {steering_degrees:.1f}"
                 elif lower_key == "s":
                     motor_voltage = step_motor_voltage(motor_voltage, False)
-                    command = f"VOLTAGE {motor_voltage:.1f}"
+                    command = f"DRIVE {motor_voltage:.1f} {steering_degrees:.1f}"
                 elif lower_key == "a":
                     steering_degrees = clamp(
                         steering_degrees + STEERING_STEP_DEGREES,
                         -MAX_KEYBOARD_STEERING_DEGREES,
                         MAX_KEYBOARD_STEERING_DEGREES,
                     )
-                    command = f"STEER {steering_degrees:.1f}"
+                    command = f"DRIVE {motor_voltage:.1f} {steering_degrees:.1f}"
                 elif lower_key == "d":
                     steering_degrees = clamp(
                         steering_degrees - STEERING_STEP_DEGREES,
                         -MAX_KEYBOARD_STEERING_DEGREES,
                         MAX_KEYBOARD_STEERING_DEGREES,
                     )
-                    command = f"STEER {steering_degrees:.1f}"
+                    command = f"DRIVE {motor_voltage:.1f} {steering_degrees:.1f}"
                 elif lower_key == "x" or key == " ":
                     motor_voltage = 0.0
                     command = "STOP"
                 elif lower_key == "c":
                     steering_degrees = 0.0
-                    command = "CENTER"
+                    command = f"DRIVE {motor_voltage:.1f} 0.0"
                 elif lower_key == "i":
                     motor_voltage = 0.0
                     steering_degrees = 0.0

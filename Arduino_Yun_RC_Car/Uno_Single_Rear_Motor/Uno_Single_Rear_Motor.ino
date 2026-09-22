@@ -9,7 +9,7 @@
  * Independent Arduino Uno controller for:
  *   - one encoderless 12 V rear DC motor,
  *   - two front steering servos,
- *   - USB Serial commands from a laptop.
+ *   - line-oriented commands from USB Serial now, and from an ESP8266 later.
  *
  * The motor driver is the existing MAI-2MT-DC V3.0. Only its channel A is
  * used. Motor power comes from an external 12 V supply; never from the Uno.
@@ -59,7 +59,9 @@ const float kMinWheelSteerDeg = -45.0f;
 const float kMaxWheelSteerDeg = 55.0f;
 
 /* Open-loop motor settings. */
-const float kMotorSupplyVoltage = 12.0f;
+constexpr float kMotorSupplyVoltage = 12.0f;
+/* Bench measurement: the installed motor did not start below about 7 V. */
+constexpr float kMinimumReliableMotorVoltage = 7.0f;
 const float kMaxDutyPercent = 100.0f;
 const bool kForwardIn1High = true;
 const uint32_t kMotorPwmHz = 20000UL;
@@ -89,6 +91,9 @@ static_assert(kLeftServoPin == 5 && kRightServoPin == 6,
               "Timer2 servo scheduler directly drives Uno D5 and D6");
 static_assert(kMotorPwmTop == 799U,
               "20 kHz Timer1 TOP must be 799 at 16 MHz");
+static_assert(kMinimumReliableMotorVoltage > 0.0f &&
+                  kMinimumReliableMotorVoltage <= kMotorSupplyVoltage,
+              "Reliable-start voltage must be within the motor supply range");
 
 enum ServoEvent : uint8_t
 {
@@ -254,6 +259,22 @@ void commandMotorPercent(float signedDutyPercent)
     directionPauseStartedMs = millis();
     directionPauseActive = true;
   }
+}
+
+float commandReliableMotorVoltage(float signedVoltage)
+{
+  float limitedVoltage =
+      clampFloat(signedVoltage, -kMotorSupplyVoltage, kMotorSupplyVoltage);
+
+  if (absoluteFloat(limitedVoltage) > kEpsilon &&
+      absoluteFloat(limitedVoltage) < kMinimumReliableMotorVoltage)
+  {
+    limitedVoltage = limitedVoltage > 0.0f ? kMinimumReliableMotorVoltage
+                                           : -kMinimumReliableMotorVoltage;
+  }
+
+  commandMotorPercent((limitedVoltage / kMotorSupplyVoltage) * 100.0f);
+  return limitedVoltage;
 }
 
 void serviceMotor()
@@ -500,12 +521,14 @@ void printHelp(Print &out)
 {
   out.println(F("PowerOn Uno single rear motor controller"));
   out.println(F("Line commands (115200 baud, newline):"));
+  out.println(F("  DRIVE <-12.0..12.0> <deg>  reliable motor voltage + steering"));
   out.println(F("  VOLTAGE <-12.0..12.0>  signed nominal average motor voltage"));
   out.println(F("  MOTOR <-100..100>      signed PWM duty percent"));
   out.println(F("  STEER <degrees>         +left, -right; safe range is clamped"));
   out.println(F("  CENTER | STOP | IDLE | STATUS | HELP"));
   out.println(F("  TIMEOUT <200..600000>   motor-command watchdog in ms"));
   out.println(F("  KEEPALIVE               refresh watchdog, no reply"));
+  out.println(F("DRIVE raises nonzero motor commands below 7 V to +/-7 V."));
   out.println(F("VOLTAGE is open-loop PWM, not measured/regulated terminal voltage."));
 }
 
@@ -558,12 +581,34 @@ bool executeCommand(char *line, Print &out)
   }
 
   char *argument = strtok_r(NULL, " \t", &save);
+  char *argument2 = strtok_r(NULL, " \t", &save);
   char *extra = strtok_r(NULL, " \t", &save);
   float number = 0.0f;
 
+  if (strcmp(verb, "DRIVE") == 0)
+  {
+    float steering = 0.0f;
+    if (!parseNumber(argument, number) || !parseNumber(argument2, steering) ||
+        extra != NULL)
+    {
+      return false;
+    }
+
+    applySteering(steering);
+    const float appliedVoltage = commandReliableMotorVoltage(number);
+    out.print(F("OK DRIVE requested_voltage="));
+    out.print(number, 2);
+    out.print(F("V applied_command="));
+    out.print(appliedVoltage, 2);
+    out.print(F("V steer_center="));
+    out.print(steeringCenterDeg, 1);
+    out.println(F("deg"));
+    return true;
+  }
+
   if (strcmp(verb, "VOLTAGE") == 0)
   {
-    if (!parseNumber(argument, number) || extra != NULL)
+    if (!parseNumber(argument, number) || argument2 != NULL)
     {
       return false;
     }
@@ -580,7 +625,7 @@ bool executeCommand(char *line, Print &out)
 
   if (strcmp(verb, "MOTOR") == 0)
   {
-    if (!parseNumber(argument, number) || extra != NULL)
+    if (!parseNumber(argument, number) || argument2 != NULL)
     {
       return false;
     }
@@ -593,7 +638,7 @@ bool executeCommand(char *line, Print &out)
 
   if (strcmp(verb, "STEER") == 0)
   {
-    if (!parseNumber(argument, number) || extra != NULL)
+    if (!parseNumber(argument, number) || argument2 != NULL)
     {
       return false;
     }
@@ -611,7 +656,7 @@ bool executeCommand(char *line, Print &out)
   if (strcmp(verb, "TIMEOUT") == 0)
   {
     uint32_t requestedTimeout = 0;
-    if (!parseUnsignedLong(argument, requestedTimeout) || extra != NULL ||
+    if (!parseUnsignedLong(argument, requestedTimeout) || argument2 != NULL ||
         requestedTimeout < kMinCommandTimeoutMs ||
         requestedTimeout > kMaxCommandTimeoutMs)
     {
@@ -623,7 +668,7 @@ bool executeCommand(char *line, Print &out)
     return true;
   }
 
-  if (argument != NULL)
+  if (argument != NULL || argument2 != NULL || extra != NULL)
   {
     return false;
   }
