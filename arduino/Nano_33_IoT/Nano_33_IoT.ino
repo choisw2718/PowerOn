@@ -417,12 +417,11 @@ void loop() {
   if (!serviceWiFi()) return;
   pollDiscovery();
   if (hasController && !controller.connected()) closeController();
-  WiFiClient candidate = server.accept();
-  if (candidate) {
-    if (hasController) {
-      candidate.println(F("BUSY one controller allowed"));
-      candidate.stop();
-    } else {
+  // WiFiNINA may return the active socket again from accept(). Do not accept
+  // while a controller owns it, or the BUSY path would close that controller.
+  if (!hasController) {
+    WiFiClient candidate = server.accept();
+    if (candidate) {
       controller = candidate;
       hasController = true;
       resetLineParser();
