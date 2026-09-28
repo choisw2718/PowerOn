@@ -1,4 +1,4 @@
-"""Keyboard controller for the PowerOn Nano 33 IoT access point."""
+"""Keyboard controller for the PowerOn Nano 33 IoT on the local Wi-Fi."""
 
 from __future__ import annotations
 
@@ -12,8 +12,9 @@ import threading
 import time
 
 
-DEFAULT_HOST = "192.168.4.1"
 DEFAULT_PORT = 5000
+DISCOVERY_PORT = 5001
+DISCOVERY_REQUEST = b"POWERON_DISCOVER"
 KEEPALIVE_PERIOD_SECONDS = 0.5
 MOTOR_VOLTAGE_STEP = 0.5
 STEERING_STEP_DEGREES = 2.0
@@ -191,7 +192,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Control the PowerOn car through Nano 33 IoT Wi-Fi."
     )
-    parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--host", help="Nano IP address; discovered automatically if omitted")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--connect-timeout", type=float, default=5.0)
     return parser.parse_args()
@@ -206,20 +207,44 @@ def configured_ssid() -> str | None:
     return match.group(1) if match else None
 
 
+def discover_host(port: int, timeout_seconds: float = 3.0) -> str | None:
+    expected = f"POWERON_NANO {port}".encode("ascii")
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            probe.bind(("", 0))
+            while time.monotonic() < deadline:
+                probe.sendto(DISCOVERY_REQUEST, ("255.255.255.255", DISCOVERY_PORT))
+                probe.settimeout(min(0.5, max(0.01, deadline - time.monotonic())))
+                try:
+                    message, address = probe.recvfrom(64)
+                except socket.timeout:
+                    continue
+                if message.strip() == expected:
+                    return address[0]
+    except OSError:
+        return None
+    return None
+
+
 def main() -> int:
     args = parse_args()
-    try:
-        controller = WifiController(args.host, args.port, args.connect_timeout)
-    except OSError as error:
-        print(f"Could not connect to {args.host}:{args.port}: {error}")
+    host = args.host or discover_host(args.port)
+    if host is None:
         ssid = configured_ssid()
-        if ssid:
-            print(f"Connect the laptop to the '{ssid}' Wi-Fi network first.")
-        else:
-            print("Connect the laptop to the Nano 33 IoT Wi-Fi network first.")
+        network = f"'{ssid}'" if ssid else "the configured Wi-Fi"
+        print(f"Nano not found on {network}.")
+        print("Check the Nano's READY WIFI=... IP=... line, or pass --host <Nano IP>.")
+        return 1
+    try:
+        controller = WifiController(host, args.port, args.connect_timeout)
+    except OSError as error:
+        print(f"Could not connect to Nano at {host}:{args.port}: {error}")
+        print("Use the Nano's IP from the READY line, not this computer's IP.")
         return 1
 
-    print(f"Connected to Nano 33 IoT at {args.host}:{args.port}.")
+    print(f"Connected to Nano 33 IoT at {host}:{args.port}.")
     reader = threading.Thread(target=controller.reader_loop, daemon=True)
     keepalive = threading.Thread(target=controller.keepalive_loop, daemon=True)
     reader.start()

@@ -2,6 +2,7 @@
 #include <Servo.h>
 #include <SPI.h>
 #include <WiFiNINA.h>
+#include <WiFiUdp.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdlib.h>
@@ -43,6 +44,8 @@ constexpr uint16_t kRightServoNeutralUs = 1402;
 constexpr uint16_t kRightServoMaxUs = 1952;
 
 constexpr uint16_t kTcpPort = 5000;
+constexpr uint16_t kDiscoveryPort = 5001;
+constexpr uint32_t kWiFiRetryMs = 5000;
 constexpr uint32_t kDirectionPauseMs = 50;
 constexpr uint32_t kDefaultTimeoutMs = 1500;
 constexpr uint32_t kMinimumTimeoutMs = 200;
@@ -54,10 +57,14 @@ constexpr float kDegToRad = 0.0174532925f;
 constexpr float kRadToDeg = 57.2957795f;
 
 WiFiServer server(kTcpPort);
+WiFiUDP discovery;
 WiFiClient controller;
 Servo leftServo;
 Servo rightServo;
 bool hasController = false;
+bool wifiModuleAvailable = false;
+bool wifiServerStarted = false;
+uint32_t lastWiFiAttemptMs = 0;
 bool motorEnabled = false;
 bool motorForward = true;
 bool directionPauseActive = false;
@@ -319,6 +326,54 @@ void closeController() {
   resetLineParser();
 }
 
+bool serviceWiFi() {
+  if (!wifiModuleAvailable) {
+    stopMotor();
+    return false;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wifiServerStarted) {
+      server.begin();
+      discovery.begin(kDiscoveryPort);
+      wifiServerStarted = true;
+      Serial.print(F("READY WIFI=")); Serial.print(WIFI_SSID);
+      Serial.print(F(" IP=")); Serial.print(WiFi.localIP());
+      Serial.print(F(" PORT=")); Serial.println(kTcpPort);
+    }
+    return true;
+  }
+  if (hasController) closeController();
+  else stopMotor();
+  if (wifiServerStarted) {
+    discovery.stop();
+    server.end();
+    wifiServerStarted = false;
+    Serial.println(F("WIFI DISCONNECTED; motor stopped"));
+  }
+  if (millis() - lastWiFiAttemptMs >= kWiFiRetryMs) {
+    lastWiFiAttemptMs = millis();
+    Serial.print(F("Connecting to Wi-Fi ")); Serial.println(WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+  return false;
+}
+
+void pollDiscovery() {
+  const int packetSize = discovery.parsePacket();
+  if (packetSize <= 0) return;
+  char request[32];
+  const int length = discovery.read(request, sizeof(request) - 1);
+  if (length < 0) return;
+  request[length] = '\0';
+  while (discovery.available()) discovery.read();
+  if (strcmp(request, "POWERON_DISCOVER") != 0) return;
+  if (discovery.beginPacket(discovery.remoteIP(), discovery.remotePort())) {
+    discovery.print(F("POWERON_NANO "));
+    discovery.print(kTcpPort);
+    discovery.endPacket();
+  }
+}
+
 void configureOutputs() {
   // Passive pull-up and pull-down components in WIRING.ko.md cover reset time.
   analogWriteResolution(8);
@@ -347,15 +402,9 @@ void setup() {
     Serial.println(F("ERR NINA module missing; motor stays disabled"));
     return;
   }
-  WiFi.config(IPAddress(192, 168, 4, 1));
-  if (WiFi.beginAP(WIFI_SSID, WIFI_PASSWORD) != WL_AP_LISTENING) {
-    Serial.println(F("ERR access point failed; motor stays disabled"));
-    return;
-  }
-  server.begin();
-  Serial.print(F("READY AP=")); Serial.print(WIFI_SSID);
-  Serial.print(F(" IP=")); Serial.print(WiFi.localIP());
-  Serial.print(F(" PORT=")); Serial.println(kTcpPort);
+  wifiModuleAvailable = true;
+  lastWiFiAttemptMs = millis() - kWiFiRetryMs;
+  serviceWiFi();
 }
 
 void loop() {
@@ -365,12 +414,8 @@ void loop() {
     ++timeoutStopCount;
     if (hasController && controller.connected()) controller.println(F("TIMEOUT STOP"));
   }
-  const int wifiStatus = WiFi.status();
-  if (wifiStatus != WL_AP_LISTENING && wifiStatus != WL_AP_CONNECTED) {
-    if (hasController) closeController();
-    else stopMotor();
-    return;
-  }
+  if (!serviceWiFi()) return;
+  pollDiscovery();
   if (hasController && !controller.connected()) closeController();
   WiFiClient candidate = server.accept();
   if (candidate) {

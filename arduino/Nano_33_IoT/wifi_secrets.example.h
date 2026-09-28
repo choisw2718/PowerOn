@@ -1,5 +1,5 @@
 #pragma once
 
-// Copy this file to wifi_secrets.h, then choose a private password (8+ chars).
-#define WIFI_SSID "PowerOn-Car"
+// Copy to wifi_secrets.h and enter the existing 2.4 GHz router credentials.
+#define WIFI_SSID "YOUR_WIFI_NAME"
 #define WIFI_PASSWORD "REPLACE_WITH_PRIVATE_PASSWORD"

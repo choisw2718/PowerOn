@@ -13,8 +13,8 @@
 1. **전원을 모두 분리**하고 차체를 받쳐 바퀴가 지면에 닿지 않게 합니다. 기존 Uno/ESP-01 하네스의 각 선을 사진과 라벨로 기록합니다. 색상만 보고 용도를 추정하지 않습니다.
 2. 모터 라벨의 **정격 전압·정지 전류**, 드라이버의 모터 전압·허용 전류, 서보 커넥터의 `신호/+/-` 표시를 확인합니다. 드라이버의 로직 전원 4.5~6.0 V와 LOW 활성 ENABLE은 매뉴얼에 있습니다. Nano GPIO 3.3 V가 드라이버의 HIGH 범위 3.2~5 V에 거의 여유 없이 걸치므로 아래 5 V 버퍼를 사용합니다.
 3. **모터용 전원**, **HS-311 두 개용 4.8~6.0 V 전원**, **드라이버 로직/레벨 변환용 안정화 5 V 전원**, Nano의 USB 전원을 준비합니다. HS-311 제조사 자료의 정지 전류는 한 개당 최대 800 mA이므로 서보 전원은 두 개의 동시 부하와 여유를 고려합니다. 모터 전원에는 전원 차단 스위치와 모터/드라이버에 맞는 퓨즈를 둡니다. Nano 핀이나 USB에서 모터·서보 전류를 공급하지 않습니다.
-4. Arduino IDE에서 **Arduino SAMD Boards (32-bits ARM Cortex-M0+)**를 설치하고 보드를 **Arduino Nano 33 IoT**로 선택합니다. 라이브러리 관리자에서 **WiFiNINA**, **Arduino_SpiNINA**, **Servo**를 설치합니다. WiFiNINA 2.1.1이 Arduino_SpiNINA를 자동 설치하지 않았다면 별도로 설치해야 컴파일됩니다. USB 데이터 케이블로 Nano만 연결해 포트가 보이는지 확인합니다. NINA 펌웨어는 IDE의 Firmware Updater로 확인하고, Wi-Fi 접속 지점이 시작되지 않으면 공식 절차에 따라 업데이트합니다.
-5. [wifi_secrets.example.h](wifi_secrets.example.h)를 같은 폴더의 `wifi_secrets.h`로 복사하고 **8자 이상인 개인 비밀번호**를 넣습니다. `wifi_secrets.h`는 Git에 포함되지 않도록 설정되어 있습니다. 스케치를 업로드합니다. 115200 baud USB 시리얼 모니터를 연 뒤 Nano의 **RESET 버튼을 눌러** `READY AP=... IP=192.168.4.1 PORT=5000`이 나오는지 확인합니다. USB 시리얼 모니터를 열어 두지 않아도 스케치는 실행됩니다.
+4. Arduino IDE에서 **Arduino SAMD Boards (32-bits ARM Cortex-M0+)**를 설치하고 보드를 **Arduino Nano 33 IoT**로 선택합니다. 라이브러리 관리자에서 **WiFiNINA**, **Arduino_SpiNINA**, **Servo**를 설치합니다. WiFiNINA 2.1.1이 Arduino_SpiNINA를 자동 설치하지 않았다면 별도로 설치해야 컴파일됩니다. USB 데이터 케이블로 Nano만 연결해 포트가 보이는지 확인합니다. NINA 펌웨어는 IDE의 Firmware Updater로 확인하고, 기존 공유기 접속이 안 되면 공식 절차에 따라 업데이트합니다.
+5. [wifi_secrets.example.h](wifi_secrets.example.h)를 같은 폴더의 `wifi_secrets.h`로 복사하고 **기존 2.4 GHz Wi-Fi 공유기의 SSID와 비밀번호**를 넣습니다. `wifi_secrets.h`는 Git에 포함되지 않도록 설정되어 있습니다. 스케치를 업로드합니다. 115200 baud USB 시리얼 모니터를 연 뒤 Nano의 **RESET 버튼을 눌러** `READY WIFI=... IP=... PORT=5000`이 나오는지 확인합니다. `IP`는 Nano가 공유기에서 받은 주소이며 노트북 IP와 다릅니다. USB 시리얼 모니터를 열어 두지 않아도 스케치는 실행됩니다.
 6. 멀티미터로 각 전원의 극성·전압을 따로 측정합니다. Nano는 **3.3 V 입출력이고 5 V 입력을 허용하지 않습니다.** 드라이버/서보의 5 V 선을 Nano D핀이나 3V3에 연결하지 않습니다. Nano의 `+5V` 핀은 별도 납땜 점퍼 조건이 있는 USB 측 전원 핀이므로 여기서는 쓰지 않습니다. Nano 전원을 USB 대신 VIN으로 바꾸려면 공식 VIN 범위와 발열을 별도로 검토합니다.
 
 ## 2. 핀 번호 한눈에 보기
@@ -111,7 +111,7 @@ Nano D3 **LOW/리셋** → NPN OFF → 10 kΩ 풀업이 3번 L_ENABLE을 HIGH로
 
 1. 전원 분리 상태에서 연결표대로 한 선씩 연결하고 전원 `+`와 GND가 단락되지 않았는지 측정합니다. 74AHCT245의 방향, NPN의 E/B/C, 서보 `+/-`와 드라이버 **L/R** 단자를 다시 확인합니다.
 2. **모터 전원은 여전히 꺼 둔 채** Nano USB, 드라이버 로직 5 V, 서보 전원을 켭니다. 리셋 전후에 드라이버 **3번 L_ENABLE이 HIGH**(비활성), **5번 L_PWM·1번 L_IN1·2번 L_IN2가 LOW**인지 측정합니다. Nano만 켰을 때/로직 5 V만 켰을 때도 모터가 켜질 경로가 없는지 확인합니다.
-3. 노트북을 `wifi_secrets.h`의 SSID에 연결합니다. [wifi_control.py](wifi_control.py)를 실행하거나 TCP 클라이언트로 `192.168.4.1:5000`에 연결해 `STATUS` + 줄바꿈을 보냅니다. `enabled=0`을 확인합니다. 1.5초 이내에 동작 명령 또는 `KEEPALIVE`가 없으면 모터가 정지하도록 되어 있습니다.
+3. 노트북을 `wifi_secrets.h`에 적은 **같은 공유기 Wi-Fi**에 연결합니다. [wifi_control.py](wifi_control.py)를 실행하면 Nano를 자동 검색합니다. 또는 TCP 클라이언트로 시리얼 모니터에 출력된 **Nano IP:5000**에 연결해 `STATUS` + 줄바꿈을 보냅니다. `enabled=0`을 확인합니다. 1.5초 이내에 동작 명령 또는 `KEEPALIVE`가 없으면 모터가 정지하도록 되어 있습니다.
 4. 서보 혼과 링크가 걸리지 않게 한 뒤 `STEER 5`, `STEER -5`, `CENTER`를 순서대로 보냅니다. **코드의 +는 차량 왼쪽**입니다. 기존 하네스의 L/R과 실제 바퀴가 교차한다고 가정하므로, 좌우가 틀리거나 기구가 끝에 걸리면 즉시 전원을 끄고 스케치의 채널·방향·펄스 한계를 조정합니다.
 5. 바퀴를 띄운 채 모터 전원을 켭니다. 모터 정격이 기존 12 V와 맞는 것을 확인한 경우에만 `DRIVE 7 0` → `STOP` → `DRIVE -7 0` → `STOP`을 짧게 보냅니다. 방향·전류·발열을 확인합니다. 반대라면 **모든 전원을 끈 후** L 출력의 모터 두 선을 바꾸거나 코드의 `kForwardIn1High`를 변경합니다.
 6. `DRIVE` 후 명령을 끊어 **1.5초 시간 초과**, TCP 연결 종료, Nano 리셋, Wi-Fi 소실에서 정지하는지 시험합니다. `STOP`은 모터만 정지하고 `IDLE`은 모터를 정지시키며 조향도 중앙으로 보냅니다. 실차 검증 전에는 지면 주행을 하지 않습니다.
@@ -120,7 +120,7 @@ Nano D3 **LOW/리셋** → NPN OFF → 10 kΩ 풀업이 3번 L_ENABLE을 HIGH로
 
 - [Arduino Nano 33 IoT 공식 핀 배치](https://docs.arduino.cc/resources/pinouts/ABX00027-full-pinout.pdf), [데이터시트](https://docs.arduino.cc/resources/datasheets/ABX00027-datasheet.pdf): D핀, 3.3 V 비허용 5 V 입력, 전원 핀.
 - [MAI-2MT-DC V3.0 매뉴얼](https://www.icbanq.com/icdownload/data/ICBShop/Board/MAI-2MT-DC_V30.pdf): 드라이버 10핀 번호, HIGH/LOW 범위, 로직 및 모터 전원 구분.
-- [Arduino WiFiNINA API](https://github.com/arduino-libraries/WiFiNINA/blob/master/docs/api.md): AP, TCP 서버, 기본 주소.
+- [Arduino WiFiNINA API](https://github.com/arduino-libraries/WiFiNINA/blob/master/docs/api.md): 공유기 연결, TCP 서버, UDP 검색.
 - [Hitec HS-311 제품 사양](https://hitecrcd.com/bulk-hs-311-standard-voltage-resin-gear-24t-analog-sport-servo/): 4.8~6.0 V와 전류.
 - [TI SN74AHCT245 데이터시트](https://www.ti.com/lit/ds/symlink/sn74ahct245.pdf): 3.3 V → 5 V 변환, 핀 배치.
 - 드라이버 채널/극성 및 조향 보정의 출처는 이 저장소의 [기존 Uno 문서](https://github.com/choisw2718/PowerOn/blob/cc19f58/Arduino_Yun_RC_Car/Uno_Single_Rear_Motor/README.md)와 스케치입니다. **현 드라이버 실물과 차량에서 재확인해야 합니다.**
