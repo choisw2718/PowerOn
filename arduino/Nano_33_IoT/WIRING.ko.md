@@ -13,7 +13,7 @@
 1. **전원을 모두 분리**하고 차체를 받쳐 바퀴가 지면에 닿지 않게 합니다. 기존 Uno/ESP-01 하네스의 각 선을 사진과 라벨로 기록합니다. 색상만 보고 용도를 추정하지 않습니다.
 2. 모터 라벨의 **정격 전압·정지 전류**, 드라이버의 모터 전압·허용 전류, 서보 커넥터의 `신호/+/-` 표시를 확인합니다. 드라이버의 로직 전원 4.5~6.0 V와 LOW 활성 ENABLE은 매뉴얼에 있습니다. Nano GPIO 3.3 V가 드라이버의 HIGH 범위 3.2~5 V에 거의 여유 없이 걸치므로 아래 5 V 버퍼를 사용합니다.
 3. **모터용 전원**, **HS-311 두 개용 4.8~6.0 V 전원**, **드라이버 로직/레벨 변환용 안정화 5 V 전원**, Nano의 USB 전원을 준비합니다. HS-311 제조사 자료의 정지 전류는 한 개당 최대 800 mA이므로 서보 전원은 두 개의 동시 부하와 여유를 고려합니다. 모터 전원에는 전원 차단 스위치와 모터/드라이버에 맞는 퓨즈를 둡니다. Nano 핀이나 USB에서 모터·서보 전류를 공급하지 않습니다.
-4. Arduino IDE에서 **Arduino SAMD Boards (32-bits ARM Cortex-M0+)**를 설치하고 보드를 **Arduino Nano 33 IoT**로 선택합니다. 라이브러리 관리자에서 **WiFiNINA**와 **Servo**를 설치합니다. USB 데이터 케이블로 Nano만 연결해 포트가 보이는지 확인합니다. NINA 펌웨어는 IDE의 Firmware Updater로 확인하고, Wi-Fi 접속 지점이 시작되지 않으면 공식 절차에 따라 업데이트합니다.
+4. Arduino IDE에서 **Arduino SAMD Boards (32-bits ARM Cortex-M0+)**를 설치하고 보드를 **Arduino Nano 33 IoT**로 선택합니다. 라이브러리 관리자에서 **WiFiNINA**, **Arduino_SpiNINA**, **Servo**를 설치합니다. WiFiNINA 2.1.1이 Arduino_SpiNINA를 자동 설치하지 않았다면 별도로 설치해야 컴파일됩니다. USB 데이터 케이블로 Nano만 연결해 포트가 보이는지 확인합니다. NINA 펌웨어는 IDE의 Firmware Updater로 확인하고, Wi-Fi 접속 지점이 시작되지 않으면 공식 절차에 따라 업데이트합니다.
 5. [wifi_secrets.example.h](wifi_secrets.example.h)를 같은 폴더의 `wifi_secrets.h`로 복사하고 **8자 이상인 개인 비밀번호**를 넣습니다. `wifi_secrets.h`는 Git에 포함되지 않도록 설정되어 있습니다. 스케치를 업로드합니다. 115200 baud USB 시리얼 모니터를 연 뒤 Nano의 **RESET 버튼을 눌러** `READY AP=... IP=192.168.4.1 PORT=5000`이 나오는지 확인합니다. USB 시리얼 모니터를 열어 두지 않아도 스케치는 실행됩니다.
 6. 멀티미터로 각 전원의 극성·전압을 따로 측정합니다. Nano는 **3.3 V 입출력이고 5 V 입력을 허용하지 않습니다.** 드라이버/서보의 5 V 선을 Nano D핀이나 3V3에 연결하지 않습니다. Nano의 `+5V` 핀은 별도 납땜 점퍼 조건이 있는 USB 측 전원 핀이므로 여기서는 쓰지 않습니다. Nano 전원을 USB 대신 VIN으로 바꾸려면 공식 VIN 범위와 발열을 별도로 검토합니다.
 

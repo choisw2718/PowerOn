@@ -2,7 +2,7 @@
 
 목표는 **Nano 33 IoT 1개**가 Wi-Fi 명령을 직접 받아 기존 **MAI-2MT-DC V3.0** 드라이버의 **L 채널로 중앙 후륜 모터 1개**를 제어하고, 기존 **Hitec HS-311 앞바퀴 조향 서보 2개**를 구동하는 것입니다. 드라이버 R 채널에는 모터를 연결하지 않습니다. L 채널 판단의 근거와 드라이버의 **10핀 번호**는 [배선 문서](WIRING.ko.md#2-1-모터-드라이버의-실제-10핀-box-커넥터-번호)에 있습니다.
 
-**Nano용 펌웨어와 핀맵을 작성했습니다. 컴파일·실차 검증은 아직 하지 않았습니다.** 이전 Uno 버전은 [Uno 안내의 저장소 기록](https://github.com/choisw2718/PowerOn/blob/cc19f58/Arduino_Yun_RC_Car/Uno_Single_Rear_Motor/README.md)에서 볼 수 있습니다. 아래의 [배선 전 준비와 핀별 배선](WIRING.ko.md)을 먼저 읽으세요.
+**Nano용 펌웨어와 핀맵을 작성했습니다. 2026-09-28에 Arduino SAMD 1.8.14 보드 설정으로 컴파일에 성공했습니다. 업로드·실차 검증은 아직 하지 않았습니다.** 이전 Uno 버전은 [Uno 안내의 저장소 기록](https://github.com/choisw2718/PowerOn/blob/cc19f58/Arduino_Yun_RC_Car/Uno_Single_Rear_Motor/README.md)에서 볼 수 있습니다. 아래의 [배선 전 준비와 핀별 배선](WIRING.ko.md)을 먼저 읽으세요.
 
 ## 파일과 실행
 
@@ -13,7 +13,7 @@
 | [wifi_secrets.example.h](wifi_secrets.example.h) | 개인 Wi-Fi 비밀번호 설정용 예시 |
 | [wifi_control.py](wifi_control.py) | Python 표준 라이브러리만 사용하는 노트북 키보드 조종기 |
 
-1. Arduino IDE에 **Arduino SAMD Boards**, **WiFiNINA**, **Servo**를 설치하고, **Arduino Nano 33 IoT**를 선택합니다.
+1. Arduino IDE에 **Arduino SAMD Boards**, **WiFiNINA**, **Arduino_SpiNINA**, **Servo**를 설치하고, **Arduino Nano 33 IoT**를 선택합니다. WiFiNINA 2.1.1은 Arduino_SpiNINA 0.0.2도 사용합니다.
 2. `wifi_secrets.example.h`를 같은 폴더의 `wifi_secrets.h`로 복사해 SSID와 8자 이상 개인 비밀번호를 설정한 뒤 스케치를 업로드합니다. 비밀번호 파일은 Git에서 제외됩니다.
 3. USB 시리얼 모니터 115200 baud를 열고 Nano의 RESET 버튼을 눌러 `READY AP=... IP=192.168.4.1 PORT=5000`을 확인합니다. 노트북을 해당 Wi-Fi에 연결하고 `python arduino\Nano_33_IoT\wifi_control.py`를 실행합니다.
 4. `W/S`는 명목 모터 전압, `A/D`는 조향, `X`/Space는 모터 정지, `C`는 조향 중앙, `I`는 정지와 중앙, `R`은 상태, `Q`/Esc는 종료입니다. TCP 클라이언트는 `192.168.4.1:5000`에 ASCII 명령과 줄바꿈을 보낼 수도 있습니다. 한 번에 조종기 한 대만 받습니다.
@@ -28,6 +28,10 @@
 - `VOLTAGE` 값은 PWM 비율에 대한 명목 값입니다. 엔코더와 전압 피드백이 없으므로 실제 속도나 모터 단자 전압을 일정하게 유지하지 않습니다.
 
 Nano D9의 `analogWrite()` PWM을 사용하므로 Uno 타이머의 20 kHz 설정을 그대로 쓰지 않습니다. 드라이버의 허용 PWM 주파수를 실물 사양과 시험으로 확인하세요. 코드의 핀 번호와 배선 예시는 [핀별 표](WIRING.ko.md#2-핀-번호-한눈에-보기)에 있습니다.
+
+## Windows에서 한글 스케치북 경로 오류가 날 때
+
+`grpc: error while marshaling: string field contains invalid UTF-8`이 나오고 컴파일 로그의 OneDrive 경로가 깨져 보이면, Arduino IDE의 **파일 → 환경설정 → 스케치북 위치**를 `C:\Users\<사용자이름>\Arduino`처럼 영문 경로로 바꾸고 IDE를 다시 시작합니다. 그 위치의 `Nano_33_IoT` 폴더에 `.ino`와 개인 `wifi_secrets.h`를 함께 둔 뒤 새 위치의 스케치를 엽니다. 기존 OneDrive 파일은 삭제하지 않습니다. `Arduino_SpiNINA.h`가 없다는 오류가 이어지면 라이브러리 관리자에서 **Arduino_SpiNINA**도 설치합니다.
 
 ## 완료 기준
 
