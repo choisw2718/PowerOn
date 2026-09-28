@@ -1,15 +1,15 @@
 # Arduino Nano 33 IoT 단일 보드 제어
 
-목표는 **Nano 33 IoT 1개**가 Wi-Fi 명령을 직접 받아 기존 **MAI-2MT-DC V3.0** 드라이버의 채널 A로 **중앙 후륜 모터 1개**를 제어하고, 기존 **Hitec HS-311 앞바퀴 조향 서보 2개**를 구동하는 것입니다. 드라이버 채널 B에는 모터를 연결하지 않습니다.
+목표는 **Nano 33 IoT 1개**가 Wi-Fi 명령을 직접 받아 기존 **MAI-2MT-DC V3.0** 드라이버의 **L 채널로 중앙 후륜 모터 1개**를 제어하고, 기존 **Hitec HS-311 앞바퀴 조향 서보 2개**를 구동하는 것입니다. 드라이버 R 채널에는 모터를 연결하지 않습니다. L 채널 판단의 근거와 드라이버의 **10핀 번호**는 [배선 문서](WIRING.ko.md#2-1-모터-드라이버의-실제-10핀-box-커넥터-번호)에 있습니다.
 
-**Nano용 펌웨어와 핀맵을 작성했습니다. 컴파일·실차 검증은 아직 하지 않았습니다.** USB 시리얼 기반 Uno 버전은 [Uno 안내](../Uno_Single_Rear_Motor/README.md)에 보존했습니다. 아래의 [배선 전 준비와 핀별 배선](WIRING.ko.md)을 먼저 읽으세요.
+**Nano용 펌웨어와 핀맵을 작성했습니다. 컴파일·실차 검증은 아직 하지 않았습니다.** 이전 Uno 버전은 [Uno 안내의 저장소 기록](https://github.com/choisw2718/PowerOn/blob/cc19f58/Arduino_Yun_RC_Car/Uno_Single_Rear_Motor/README.md)에서 볼 수 있습니다. 아래의 [배선 전 준비와 핀별 배선](WIRING.ko.md)을 먼저 읽으세요.
 
 ## 파일과 실행
 
 | 파일 | 용도 |
 |---|---|
 | [Nano_33_IoT.ino](Nano_33_IoT.ino) | 내장 Wi-Fi AP/TCP 서버와 모터·서보 제어 |
-| [WIRING.ko.md](WIRING.ko.md) | 배선 전 준비, D2/D3/D4/D5/D6/D9 핀별 배선, 전원, 최초 시험 |
+| [WIRING.ko.md](WIRING.ko.md) | 배선 전 준비, Nano D핀과 드라이버 **10핀 번호**, 전원, 최초 시험 |
 | [wifi_secrets.example.h](wifi_secrets.example.h) | 개인 Wi-Fi 비밀번호 설정용 예시 |
 | [wifi_control.py](wifi_control.py) | Python 표준 라이브러리만 사용하는 노트북 키보드 조종기 |
 
@@ -32,7 +32,7 @@ Nano D9의 `analogWrite()` PWM을 사용하므로 Uno 타이머의 20 kHz 설정
 ## 완료 기준
 
 - [ ] 실제 Nano에서 Wi-Fi 명령 수신과 상태 응답
-- [ ] 바퀴를 띄운 상태에서 후륜 모터 정·역회전/정지와 채널 B 비사용 확인
+- [ ] 바퀴를 띄운 상태에서 후륜 모터 정·역회전/정지와 드라이버 R 채널 비사용 확인
 - [ ] 서보 2개의 중앙, 작은 좌·우 조향 및 기구 한계 확인
 - [ ] 연결 해제, 명령 시간 초과, 재부팅 시 모터 정지 확인
 - [ ] 3.3 V 신호 호환성, 전원 용량, 공통 GND, 드라이버 발열 확인

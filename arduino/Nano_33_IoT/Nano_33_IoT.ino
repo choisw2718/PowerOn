@@ -16,10 +16,10 @@
 namespace {
 
 // These are the PRINTED Nano pin labels, not physical header positions.
-constexpr uint8_t kMotorPwmPin = 9;       // D9 -> channel A PWM
-constexpr uint8_t kMotorIn1Pin = 2;       // D2 -> channel A IN1
-constexpr uint8_t kMotorIn2Pin = 4;       // D4 -> channel A IN2
-constexpr uint8_t kEnableSwitchPin = 3;  // D3 -> NPN base resistor; HIGH enables A
+constexpr uint8_t kMotorPwmPin = 9;       // D9 -> buffer -> driver pin 5 L_PWM
+constexpr uint8_t kMotorIn1Pin = 2;       // D2 -> buffer -> driver pin 1 L_IN1
+constexpr uint8_t kMotorIn2Pin = 4;       // D4 -> buffer -> driver pin 2 L_IN2
+constexpr uint8_t kEnableSwitchPin = 3;  // D3 -> NPN -> driver pin 3 L_ENABLE
 constexpr uint8_t kLeftServoPin = 5;      // D5 -> former harness channel L
 constexpr uint8_t kRightServoPin = 6;     // D6 -> former harness channel R
 
