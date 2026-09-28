@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
+import re
 import socket
 import sys
 import threading
@@ -195,16 +197,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def configured_ssid() -> str | None:
+    try:
+        header = Path(__file__).with_name("wifi_secrets.h").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    match = re.search(r'^\s*#define\s+WIFI_SSID\s+"([^"]+)"', header, re.MULTILINE)
+    return match.group(1) if match else None
+
+
 def main() -> int:
     args = parse_args()
     try:
         controller = WifiController(args.host, args.port, args.connect_timeout)
     except OSError as error:
         print(f"Could not connect to {args.host}:{args.port}: {error}")
-        print("Connect the laptop to the PowerOn-Car Wi-Fi network first.")
+        ssid = configured_ssid()
+        if ssid:
+            print(f"Connect the laptop to the '{ssid}' Wi-Fi network first.")
+        else:
+            print("Connect the laptop to the Nano 33 IoT Wi-Fi network first.")
         return 1
 
-        print(f"Connected to Nano 33 IoT at {args.host}:{args.port}.")
+    print(f"Connected to Nano 33 IoT at {args.host}:{args.port}.")
     reader = threading.Thread(target=controller.reader_loop, daemon=True)
     keepalive = threading.Thread(target=controller.keepalive_loop, daemon=True)
     reader.start()
