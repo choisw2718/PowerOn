@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <SoftwareSerial.h>
 #include <avr/interrupt.h>
 #include <ctype.h>
 #include <math.h>
@@ -10,14 +9,14 @@
  * Independent Arduino Uno controller for:
  *   - one encoderless 12 V rear DC motor,
  *   - two front steering servos,
- *   - line-oriented commands from USB Serial and an ESP-01 Wi-Fi bridge.
+ *   - line-oriented commands from USB Serial.
  *
  * The motor driver is the existing MAI-2MT-DC V3.0. Only its channel A is
  * used. Motor power comes from an external 12 V supply; never from the Uno.
  */
 
 #if !defined(__AVR_ATmega328P__)
-#error "Select Arduino Uno (ATmega328P). This sketch is not for Yun, Uno R4, or ESP32."
+#error "Select Arduino Uno (ATmega328P)."
 #endif
 
 #if F_CPU != 16000000UL
@@ -38,12 +37,6 @@ const uint8_t kUnusedMotorPwmPin = 10;
 const uint8_t kUnusedMotorIn1Pin = 7;
 const uint8_t kUnusedMotorIn2Pin = 8;
 const uint8_t kUnusedMotorEnablePin = 11;
-
-/* ESP-01 UART. ESP TX -> A0; A1 -> level shifter -> ESP RX. */
-const uint8_t kEspRxPin = A0;
-const uint8_t kEspTxPin = A1;
-const uint32_t kEspUartBaud = 38400UL;
-SoftwareSerial espSerial(kEspRxPin, kEspTxPin);
 
 /* Existing two-servo wiring and calibration. */
 const uint8_t kLeftServoPin = 5;
@@ -143,7 +136,6 @@ struct CommandLineReceiver
 };
 
 CommandLineReceiver usbReceiver = {};
-CommandLineReceiver espReceiver = {};
 
 float clampFloat(float value, float minimum, float maximum)
 {
@@ -534,7 +526,7 @@ void printStatus(Print &out)
 void printHelp(Print &out)
 {
   out.println(F("PowerOn Uno single rear motor controller"));
-  out.println(F("Line commands (USB 115200 / ESP UART 38400, newline):"));
+  out.println(F("Line commands (USB 115200, newline):"));
   out.println(F("  DRIVE <-12.0..12.0> <deg>  reliable motor voltage + steering"));
   out.println(F("  VOLTAGE <-12.0..12.0>  signed nominal average motor voltage"));
   out.println(F("  MOTOR <-100..100>      signed PWM duty percent"));
@@ -793,7 +785,6 @@ void checkCommandTimeout()
     commandMotorPercent(0.0f);
     ++timeoutStopCount;
     Serial.println(F("TIMEOUT STOP"));
-    espSerial.println(F("TIMEOUT STOP"));
   }
 }
 
@@ -835,19 +826,15 @@ void setup()
   applySteering(0.0f);
 
   Serial.begin(115200);
-  espSerial.begin(kEspUartBaud);
-  espSerial.listen();
   delay(50);
   lastMotorCommandMs = millis();
   Serial.println(F("PowerOn Uno single rear motor: outputs safe; ready"));
   printHelp(Serial);
-  espSerial.println(F("READY PowerOn Uno single rear motor"));
 }
 
 void loop()
 {
   pollCommandStream(Serial, Serial, usbReceiver);
-  pollCommandStream(espSerial, espSerial, espReceiver);
   checkCommandTimeout();
   serviceMotor();
 }

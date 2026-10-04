@@ -17,12 +17,15 @@
 namespace {
 
 // These are the PRINTED Nano pin labels, not physical header positions.
-constexpr uint8_t kMotorPwmPin = 9;       // D9 -> buffer -> driver pin 5 L_PWM
-constexpr uint8_t kMotorIn1Pin = 2;       // D2 -> buffer -> driver pin 1 L_IN1
-constexpr uint8_t kMotorIn2Pin = 4;       // D4 -> buffer -> driver pin 2 L_IN2
-constexpr uint8_t kEnableSwitchPin = 3;  // D3 -> NPN -> driver pin 3 L_ENABLE
-constexpr uint8_t kLeftServoPin = 5;      // D5 -> former harness channel L
-constexpr uint8_t kRightServoPin = 6;     // D6 -> former harness channel R
+// Direct 3.3 V drive must be verified against the driver's 3.2 V HIGH minimum.
+// Rewire the four signals to the driver's R inputs before using this sketch.
+constexpr char kMotorChannel = 'R';
+constexpr uint8_t kMotorPwmPin = 9;       // D9 -> driver pin 6 R_PWM
+constexpr uint8_t kMotorIn1Pin = 2;       // D2 -> driver pin 4 R_IN1
+constexpr uint8_t kMotorIn2Pin = 4;       // D4 -> driver pin 7 R_IN2
+constexpr uint8_t kMotorEnablePin = 3;   // D3 -> driver pin 8 R_ENABLE (LOW active)
+constexpr uint8_t kLeftServoPin = 5;      // D5 -> servo signal, former channel L
+constexpr uint8_t kRightServoPin = 6;     // D6 -> servo signal, former channel R
 
 // These values came from the Uno vehicle and must be checked on the actual car.
 constexpr float kMotorSupplyVoltage = 12.0f;
@@ -46,10 +49,11 @@ constexpr uint16_t kRightServoMaxUs = 1952;
 constexpr uint16_t kTcpPort = 5000;
 constexpr uint16_t kDiscoveryPort = 5001;
 constexpr uint32_t kWiFiRetryMs = 5000;
+constexpr uint32_t kSocketRetryMs = 5000;
+// WiFiNINA utility/wifi_spi.h wl_tcp_state values.
+constexpr uint8_t kTcpListenState = 1;
+constexpr uint8_t kTcpEstablishedState = 4;
 constexpr uint32_t kDirectionPauseMs = 50;
-constexpr uint32_t kDefaultTimeoutMs = 1500;
-constexpr uint32_t kMinimumTimeoutMs = 200;
-constexpr uint32_t kMaximumTimeoutMs = 5000;
 constexpr uint8_t kLineCapacity = 64;
 constexpr uint8_t kMaxBytesPerLoop = 64;
 constexpr float kEpsilon = 0.001f;
@@ -63,8 +67,16 @@ Servo leftServo;
 Servo rightServo;
 bool hasController = false;
 bool wifiModuleAvailable = false;
+bool wifiWasConnected = false;
 bool wifiServerStarted = false;
+bool discoveryStarted = false;
 uint32_t lastWiFiAttemptMs = 0;
+uint32_t lastSocketAttemptMs = 0;
+uint32_t discoveryPackets = 0;
+uint32_t discoveryRequests = 0;
+uint32_t discoveryReplies = 0;
+uint32_t discoverySendErrors = 0;
+bool pingLedOn = false;
 bool motorEnabled = false;
 bool motorForward = true;
 bool directionPauseActive = false;
@@ -76,9 +88,6 @@ float frontRightSteerDeg = 0.0f;
 uint16_t leftServoUs = kLeftServoNeutralUs;
 uint16_t rightServoUs = kRightServoNeutralUs;
 uint32_t directionPauseStartedMs = 0;
-uint32_t lastMotorCommandMs = 0;
-uint32_t commandTimeoutMs = kDefaultTimeoutMs;
-uint32_t timeoutStopCount = 0;
 char line[kLineCapacity] = {};
 uint8_t lineLength = 0;
 bool discardUntilEol = false;
@@ -90,8 +99,8 @@ float clampFloat(float value, float minimum, float maximum) {
 float absoluteFloat(float value) { return value < 0.0f ? -value : value; }
 
 void disableMotor() {
-  // The NPN releases the driver's externally pulled-up, active-LOW ENABLE.
-  digitalWrite(kEnableSwitchPin, LOW);
+  // Direct connection: HIGH disables the active-LOW driver ENABLE.
+  digitalWrite(kMotorEnablePin, HIGH);
   motorEnabled = false;
   analogWrite(kMotorPwmPin, 0);
   digitalWrite(kMotorIn1Pin, LOW);
@@ -113,7 +122,6 @@ void setMotorDirection(bool forward) {
 
 void commandMotorPercent(float requestedPercent) {
   const float limited = clampFloat(requestedPercent, -100.0f, 100.0f);
-  lastMotorCommandMs = millis();
   if (absoluteFloat(limited) <= kEpsilon) {
     stopMotor();
     return;
@@ -148,10 +156,10 @@ void serviceMotor() {
   }
   const float duty = absoluteFloat(targetDutyPercent);
   if (motorEnabled && absoluteFloat(appliedDutyPercent - duty) <= kEpsilon) return;
-  digitalWrite(kEnableSwitchPin, LOW);
+  digitalWrite(kMotorEnablePin, HIGH);
   setMotorDirection(motorForward);
   analogWrite(kMotorPwmPin, static_cast<int>(duty * 255.0f / 100.0f + 0.5f));
-  digitalWrite(kEnableSwitchPin, HIGH);
+  digitalWrite(kMotorEnablePin, LOW);
   motorEnabled = true;
   appliedDutyPercent = duty;
 }
@@ -200,23 +208,39 @@ void applySteering(float centerDeg) {
 }
 
 void printStatus(Print &out) {
-  out.print(F("STATUS duty_cmd=")); out.print(targetDutyPercent, 1);
+  out.print(F("STATUS channel=")); out.print(kMotorChannel);
+  out.print(F(" duty_cmd=")); out.print(targetDutyPercent, 1);
   out.print(F("% duty_applied=")); out.print(appliedDutyPercent, 1);
   out.print(F("% enabled=")); out.print(motorEnabled ? 1 : 0);
   out.print(F(" steer_center=")); out.print(steeringCenterDeg, 1);
   out.print(F("deg servo_us_l=")); out.print(leftServoUs);
-  out.print(F(" servo_us_r=")); out.print(rightServoUs);
-  out.print(F(" timeout_ms=")); out.print(commandTimeoutMs);
-  out.print(F(" timeout_stops=")); out.println(timeoutStopCount);
+  out.print(F(" servo_us_r=")); out.println(rightServoUs);
+}
+
+void printNetwork(Print &out) {
+  out.print(F("NETWORK wifi="));
+  out.print(WiFi.status() == WL_CONNECTED ? F("connected") : F("disconnected"));
+  out.print(F(" ip=")); out.print(WiFi.localIP());
+  out.print(F(" rssi_dbm="));
+  if (WiFi.status() == WL_CONNECTED) out.print(WiFi.RSSI());
+  else out.print(F("NA"));
+  out.print(F(" tcp_ready=")); out.print(wifiServerStarted ? 1 : 0);
+  out.print(F(" tcp_state=")); out.print(server.status());
+  out.print(F(" udp_ready=")); out.print(discoveryStarted ? 1 : 0);
+  out.print(F(" udp_packets=")); out.print(discoveryPackets);
+  out.print(F(" udp_requests=")); out.print(discoveryRequests);
+  out.print(F(" udp_replies=")); out.print(discoveryReplies);
+  out.print(F(" udp_errors=")); out.println(discoverySendErrors);
 }
 
 void printHelp(Print &out) {
   out.println(F("Nano 33 IoT car; TCP line commands, ASCII + newline"));
   out.println(F("DRIVE <nominal V> <center deg> | VOLTAGE <nominal V>"));
   out.println(F("MOTOR <-100..100> | STEER <deg> | CENTER | STOP | IDLE"));
-  out.println(F("STATUS | HELP | TIMEOUT <200..5000> | KEEPALIVE"));
+  out.println(F("STATUS | NETWORK | PING | HELP"));
   out.println(F("DRIVE applies the inherited +/-7 V starting floor."));
   out.println(F("VOLTAGE is open-loop PWM, not measured motor voltage."));
+  out.println(F("Motor holds the last command until STOP, IDLE, or disconnect."));
 }
 
 bool parseFloat(const char *text, float &result) {
@@ -226,16 +250,6 @@ bool parseFloat(const char *text, float &result) {
   if (end == text || *end != '\0' || !isfinite(value)) return false;
   result = static_cast<float>(value);
   return isfinite(result);
-}
-
-bool parseTimeout(const char *text, uint32_t &result) {
-  if (text == nullptr || *text == '\0' || *text == '-') return false;
-  char *end = nullptr;
-  const unsigned long value = strtoul(text, &end, 10);
-  if (end == text || *end != '\0' || value < kMinimumTimeoutMs ||
-      value > kMaximumTimeoutMs) return false;
-  result = static_cast<uint32_t>(value);
-  return true;
 }
 
 bool executeCommand(char *command, Print &out) {
@@ -270,23 +284,20 @@ bool executeCommand(char *command, Print &out) {
     out.println(F("OK"));
     return true;
   }
-  if (strcmp(verb, "TIMEOUT") == 0) {
-    uint32_t requested = 0;
-    if (b || !parseTimeout(a, requested)) return false;
-    commandTimeoutMs = requested;
-    out.println(F("OK TIMEOUT"));
+  if (a || b || extra) return false;
+  if (strcmp(verb, "PING") == 0) {
+    pingLedOn = !pingLedOn;
+    digitalWrite(LED_BUILTIN, pingLedOn ? HIGH : LOW);
+    out.print(F("PONG LED="));
+    out.println(pingLedOn ? F("ON") : F("OFF"));
     return true;
   }
-  if (a || b || extra) return false;
   if (strcmp(verb, "STOP") == 0) { stopMotor(); out.println(F("OK STOP")); return true; }
   if (strcmp(verb, "CENTER") == 0) { applySteering(0.0f); out.println(F("OK CENTER")); return true; }
   if (strcmp(verb, "IDLE") == 0) { stopMotor(); applySteering(0.0f); out.println(F("OK IDLE")); return true; }
   if (strcmp(verb, "STATUS") == 0) { printStatus(out); return true; }
+  if (strcmp(verb, "NETWORK") == 0) { printNetwork(out); return true; }
   if (strcmp(verb, "HELP") == 0 || strcmp(verb, "?") == 0) { printHelp(out); return true; }
-  if (strcmp(verb, "KEEPALIVE") == 0) {
-    if (absoluteFloat(targetDutyPercent) > kEpsilon) lastMotorCommandMs = millis();
-    return true;
-  }
   return false;
 }
 
@@ -332,28 +343,60 @@ bool serviceWiFi() {
     return false;
   }
   if (WiFi.status() == WL_CONNECTED) {
-    if (!wifiServerStarted) {
-      server.begin();
-      discovery.begin(kDiscoveryPort);
-      wifiServerStarted = true;
-      Serial.print(F("READY WIFI=")); Serial.print(WIFI_SSID);
-      Serial.print(F(" IP=")); Serial.print(WiFi.localIP());
-      Serial.print(F(" PORT=")); Serial.println(kTcpPort);
+    if (!wifiWasConnected) {
+      wifiWasConnected = true;
+      lastSocketAttemptMs = millis() - kSocketRetryMs;
     }
-    return true;
+    if ((!wifiServerStarted || !discoveryStarted) &&
+        millis() - lastSocketAttemptMs >= kSocketRetryMs) {
+      lastSocketAttemptMs = millis();
+      if (!wifiServerStarted) {
+        server.begin();
+        const uint8_t state = server.status();
+        Serial.print(F("TCP start state=")); Serial.println(state);
+        // WiFiServer::operator bool() only confirms socket allocation, while
+        // startServer() does not expose its result. Read the NINA TCP state.
+        wifiServerStarted = static_cast<bool>(server) &&
+                            (state == kTcpListenState ||
+                             state == kTcpEstablishedState);
+        if (wifiServerStarted) {
+          Serial.print(F("READY WIFI=")); Serial.print(WIFI_SSID);
+          Serial.print(F(" IP=")); Serial.print(WiFi.localIP());
+          Serial.print(F(" PORT=")); Serial.println(kTcpPort);
+        } else {
+          server.end();
+          Serial.println(F("ERR TCP server not listening; retrying in 5 s"));
+        }
+      }
+      if (!discoveryStarted) {
+        discoveryStarted = discovery.begin(kDiscoveryPort) != 0;
+        if (discoveryStarted) Serial.println(F("READY UDP discovery PORT=5001"));
+        else Serial.println(F("ERR UDP discovery socket unavailable; retrying"));
+      }
+    }
+    return wifiServerStarted;
   }
   if (hasController) closeController();
   else stopMotor();
-  if (wifiServerStarted) {
+  if (discoveryStarted) {
     discovery.stop();
+    discoveryStarted = false;
+  }
+  if (wifiServerStarted) {
     server.end();
     wifiServerStarted = false;
+  }
+  if (wifiWasConnected) {
     Serial.println(F("WIFI DISCONNECTED; motor stopped"));
+    wifiWasConnected = false;
   }
   if (millis() - lastWiFiAttemptMs >= kWiFiRetryMs) {
     lastWiFiAttemptMs = millis();
     Serial.print(F("Connecting to Wi-Fi ")); Serial.println(WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    const int result = WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    if (result != WL_CONNECTED) {
+      Serial.print(F("WIFI connect result=")); Serial.println(result);
+    }
   }
   return false;
 }
@@ -361,24 +404,29 @@ bool serviceWiFi() {
 void pollDiscovery() {
   const int packetSize = discovery.parsePacket();
   if (packetSize <= 0) return;
+  ++discoveryPackets;
   char request[32];
   const int length = discovery.read(request, sizeof(request) - 1);
   if (length < 0) return;
   request[length] = '\0';
-  while (discovery.available()) discovery.read();
+  while (discovery.available() > 0) discovery.read();
   if (strcmp(request, "POWERON_DISCOVER") != 0) return;
+  ++discoveryRequests;
   if (discovery.beginPacket(discovery.remoteIP(), discovery.remotePort())) {
     discovery.print(F("POWERON_NANO "));
     discovery.print(kTcpPort);
-    discovery.endPacket();
+    if (discovery.endPacket()) { ++discoveryReplies; return; }
   }
+  ++discoverySendErrors;
 }
 
 void configureOutputs() {
-  // Passive pull-up and pull-down components in WIRING.ko.md cover reset time.
+  // Software cannot hold ENABLE HIGH while the Nano is reset or unpowered.
   analogWriteResolution(8);
-  digitalWrite(kEnableSwitchPin, LOW);
-  pinMode(kEnableSwitchPin, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(kMotorEnablePin, HIGH);
+  pinMode(kMotorEnablePin, OUTPUT);
   digitalWrite(kMotorIn1Pin, LOW); pinMode(kMotorIn1Pin, OUTPUT);
   digitalWrite(kMotorIn2Pin, LOW); pinMode(kMotorIn2Pin, OUTPUT);
   digitalWrite(kMotorPwmPin, LOW); pinMode(kMotorPwmPin, OUTPUT);
@@ -408,14 +456,8 @@ void setup() {
 }
 
 void loop() {
-  if (absoluteFloat(targetDutyPercent) > kEpsilon &&
-      millis() - lastMotorCommandMs >= commandTimeoutMs) {
-    stopMotor();
-    ++timeoutStopCount;
-    if (hasController && controller.connected()) controller.println(F("TIMEOUT STOP"));
-  }
   if (!serviceWiFi()) return;
-  pollDiscovery();
+  if (discoveryStarted) pollDiscovery();
   if (hasController && !controller.connected()) closeController();
   // WiFiNINA may return the active socket again from accept(). Do not accept
   // while a controller owns it, or the BUSY path would close that controller.

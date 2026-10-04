@@ -1,12 +1,3 @@
-# Local/private hardware specifications and calibration
-/docs/hardware-requirements.ko.md
-/Config/
-/Arduino_Yun_RC_Car/hardware-specification.ko.md
-/Arduino_Yun_RC_Car/PowerOnConfig.h
-/STM32_F103_RC_Car/Inc/rc_config.h
-/STM32_F103_Encoder_Test/encoder-wiring-report.ko.md
-/reports/
-
 # Generated firmware and compiler output
 **/Build/
 **/build/
@@ -28,7 +19,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-arduino/Nano_33_IoT/wifi_secrets.h
+**/wifi_secrets.h
 *.pem
 *.key
 *.p12
