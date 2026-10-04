@@ -30,18 +30,25 @@ Nano_33_IoT/
   wifi_secrets.h             개인 Wi-Fi 설정 (Git 제외)
   reference/
     Uno_Single_Rear_Motor/   기존 Uno 스케치·USB 조종기·배선 안내
+    springmaru_poweron_nano33_iot/
+      README.md             외부 Wi-Fi 진단 자료 사용·비교 안내
+      UPSTREAM.json         원본 커밋과 파일 해시
+      upstream/             원본 4개 파일의 고정 사본 (.git 제외)
 ```
 
 - [개발 현황·추가로 필요한 정보](DEVELOPMENT.md)
 - [Nano 33 IoT 사용 안내](README.md)
 - [Nano 배선 전 준비·핀별 배선](WIRING.ko.md)
 - [기존 Uno 사용·배선 안내](reference/Uno_Single_Rear_Motor/README.md)
+- [springmaru Wi-Fi 진단 자료와 Windows 사용 안내](reference/springmaru_poweron_nano33_iot/README.md)
 
 ## 작업 폴더 기준
 
 현재 개발 원본은 **`C:\Users\user\Arduino\Nano_33_IoT`의 독립 폴더**입니다. 필요한 최신 코드·문서·개인 Wi-Fi 설정과 Uno 참고 자료를 모두 이곳으로 복제했습니다. Arduino IDE와 Python 조종기는 이 폴더에서 실행합니다.
 
 기존 PowerOn·OneDrive 폴더와 이전 junction, `Nano_33_IoT.before-repo-move-20260928` 백업은 보존합니다. 현재 업로드·배선 기준은 이 폴더의 Nano 문서와 스케치입니다. 개인 `wifi_secrets.h`는 공개 자료와 Git에서 제외합니다.
+
+외부 `springmaru/poweron-nano33-iot`의 Git 원본은 `C:\Users\user\Arduino\external_repos\springmaru\poweron-nano33-iot`에 있습니다. 외부 저장소의 pull과 현재 PowerOn의 push는 각각 그 저장소 폴더에서 수행합니다. PowerOn의 `reference/springmaru_poweron_nano33_iot/upstream`은 기록된 커밋의 고정 사본이므로 외부 pull에 따라 자동으로 변경되지 않습니다.
 
 ## 모터 모델 확인 결과
 

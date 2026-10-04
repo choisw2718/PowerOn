@@ -20,6 +20,7 @@ Thumbs.db
 .env.*
 !.env.example
 **/wifi_secrets.h
+**/arduino_secrets.h
 *.pem
 *.key
 *.p12

@@ -1,0 +1,25 @@
+{
+  "repository": "https://github.com/springmaru/poweron-nano33-iot",
+  "branch": "main",
+  "commit": "f013d8a60b3232d6363ed5b294f937fa007c08f0",
+  "acquired_date_kst": "2026-10-04",
+  "snapshot_directory": "upstream",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "8c7c39fb2edf8720f70815dc09747f971aadb7da9d6ccdd939212948491052f9"
+    },
+    {
+      "path": "Nano33IoTWifiServer/Nano33IoTWifiServer.ino",
+      "sha256": "95151218e2e4f7a308fd73dd07eff64019e0c53347c9fa05781994fabeb23104"
+    },
+    {
+      "path": "Nano33IoTWifiServer/arduino_secrets.example.h",
+      "sha256": "238cf3583f51aca3020bac83063539e9ff364a79d87f724385b4b72864b5c7e7"
+    },
+    {
+      "path": "README.md",
+      "sha256": "228075c4b6cff7d4d85d2e4c2d6a8081e85111901fde4b8c91e9e760f0a19009"
+    }
+  ]
+}

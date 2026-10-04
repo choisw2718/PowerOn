@@ -23,6 +23,7 @@ Wi-Fi 조종기에서 `P`를 누르면 Nano의 내장 LED가 켜짐/꺼짐으로
 | [DEVELOPMENT.md](DEVELOPMENT.md) | 현재 개발 방향, 완료·미완료 항목, 필요한 정보와 다음 작업 |
 | [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | 차량 구성, 이전 버전과 모터 모델 기록 |
 | [기존 Uno 참고 자료](reference/Uno_Single_Rear_Motor/README.md) | 기존 Uno 스케치·USB 조종기·배선 안내 |
+| [springmaru Wi-Fi 진단 참고 자료](reference/springmaru_poweron_nano33_iot/README.md) | 별도 저장소 위치, 원본 사본, Windows 사용법과 현재 코드의 차이 |
 
 Arduino IDE에서는 **`C:\Users\user\Arduino\Nano_33_IoT\Nano_33_IoT.ino`**를 엽니다. PowerShell에서는 이 폴더로 이동한 뒤 조종기를 실행합니다.
 
@@ -32,6 +33,8 @@ python wifi_control.py
 ```
 
 개인 `wifi_secrets.h`도 이 폴더로 복제했으므로 기존 설정을 사용할 수 있습니다. `.gitignore`는 이 파일을 제외하도록 맞췄습니다.
+
+외부 저장소 `springmaru/poweron-nano33-iot`는 `C:\Users\user\Arduino\external_repos\springmaru\poweron-nano33-iot`에 별도 Git 저장소로 받았습니다. 이 프로젝트에는 `reference/springmaru_poweron_nano33_iot/upstream`에 원본 사본을 구분해 보관합니다. 해당 스케치는 Wi-Fi 진단용 HTTP 8000 서버이며 현재 TCP 5000 조종기와 호환되지 않습니다. 필요한 진단 기능, 실행·복귀 순서는 [참고 안내](reference/springmaru_poweron_nano33_iot/README.md)를 따릅니다.
 
 1. Arduino IDE에 **Arduino SAMD Boards**, **WiFiNINA**, **Arduino_SpiNINA**, **Servo**를 설치하고, **Arduino Nano 33 IoT**를 선택합니다. WiFiNINA 2.1.1은 Arduino_SpiNINA 0.0.2도 사용합니다.
 2. `wifi_secrets.example.h`를 같은 폴더의 `wifi_secrets.h`로 복사해 **기존 2.4 GHz Wi-Fi 공유기**의 SSID와 비밀번호를 설정한 뒤 `Nano_33_IoT.ino`를 Arduino IDE에서 열어 스케치를 업로드합니다. 비밀번호 파일은 Git에서 제외됩니다. 업로드할 때는 드라이버의 모터 전원을 분리합니다.
