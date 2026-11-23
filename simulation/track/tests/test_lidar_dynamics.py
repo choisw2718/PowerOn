@@ -200,9 +200,12 @@ class RollingScanTest(unittest.TestCase):
         for _ in range(125):
             alive = sim.step()
             x, y = sim.sensor
+            heading = math.degrees(math.remainder(sim.yaw, math.tau))
             if 1 < x < 3.7:
                 straight.append(sim.speed)
-            elif x > 4.25 and y < 0.8:
+            # Use the middle of the 90-degree turn. The old position window
+            # extended onto the exit where the vehicle was already accelerating.
+            elif x > 4.25 and 15 <= heading <= 60:
                 corner.append(sim.speed)
             elif 1.55 < y < 2.2:
                 exit_.append(sim.speed)
@@ -211,10 +214,30 @@ class RollingScanTest(unittest.TestCase):
         self.assertFalse(sim.collision)
         self.assertFalse(sim.turn_limited)
         self.assertGreater(max(straight), 0.40)
+        self.assertGreaterEqual(len(corner), 3)
         self.assertLessEqual(max(corner), 0.30)
         self.assertGreater(max(exit_), 0.40)
         raw, corrected = sim.moving_error_sums
         self.assertLess(corrected, raw * 0.10)
+
+    def test_experimental_speed_policy_only_caps_valid_driving_with_feedback(self):
+        policy = Mock(return_value=0.55)
+        sim = Simulation(SCENARIOS["loop"], sensor=SensorSettings(), feedback=True,
+                         planner="route", speed_policy=policy)
+        targets = []
+        for _ in range(18):
+            sim.step()
+            targets.append(sim.demand.speed)
+        self.assertGreater(policy.call_count, 0)
+        self.assertGreater(max(targets), 0)
+        self.assertLessEqual(max(targets), 0.55 * sim.controller.settings.max_speed)
+
+        policy.reset_mock()
+        unmeasured = Simulation(SCENARIOS["loop"], sensor=SensorSettings(), feedback=False,
+                                planner="route", speed_policy=policy)
+        for _ in range(8):
+            unmeasured.step()
+        policy.assert_not_called()
 
 
 class TrackDrawingTest(unittest.TestCase):

@@ -28,7 +28,7 @@ Windows에서는 [PowerShell 바로가기 모음](launchers/)에서 원하는 `.
 | 라이다 자율주행 | `python -m lidar.autopilot` | [미리보기와 Pi 배포](lidar/autopilot/guide.ko.md) · [경로 계획](lidar/autopilot/planning/track-planning.ko.md) |
 | 라이다 자율·수동 전환 | 기존 단일 후륜 펌웨어용 `--drive --interactive`. 현재 듀얼 후륜 펌웨어는 Pi의 `LIDAR DRIVE`를 거절하며 계산 전용 실행과 기록을 지원합니다. | [키와 자동 복귀](lidar/autopilot/guide.ko.md#자율주행과-수동조종-전환) |
 | 트랙 시뮬레이터 | `python -m simulation.track` 또는 [lidar-simulator.cmd](simulation/track/lidar-simulator.cmd) | [코스 목록](simulation/track/guide.ko.md#코너별-순환-트랙) · [트랙과 센서 설정](simulation/track/guide.ko.md) |
-| 벤치마크 | `python -m simulation.benchmark` | [반복 시험과 결과 해석](simulation/benchmark/guide.ko.md) |
+| 벤치마크 | `python -m simulation.benchmark` | [반복 시험과 결과 해석](simulation/benchmark/guide.ko.md) · [다변인 시험과 후륜 PI](simulation/benchmark/guide.ko.md#다변인-시험과-후륜-pi) |
 | 테스트 | `python tests/run_all.py` | Python 3, 호스트 g++, 라이다 Python 테스트용 pyserial |
 
 개인 Wi-Fi 설정은 펌웨어 스케치의 `wifi_secrets.h`에 저장합니다. 신규 설정은 [공개 예시](vehicle/firmware/PowerOnNano/wifi_secrets.example.h)를 복사해 만듭니다.

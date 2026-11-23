@@ -9,6 +9,7 @@ from lidar.autopilot.motion.feedback import MotionFeedback, approach
 from lidar.autopilot.motion.speed_control import speed_for_pwm
 from lidar.geometry.wheel_odometry import integrate_wheel_distances
 from .conditions import contact_ratio
+from .wheel_pi import DualRearWheelPI
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,7 @@ def servo_limits():
 
 
 class FourWheelPlant:
-    def __init__(self, config, environment, start_pose, sensor):
+    def __init__(self, config, environment, start_pose, sensor, *, wheel_pi=None):
         self.config = config
         self.environment = environment
         chassis, defaults = PARAMETERS["chassis"], PARAMETERS["simulation"]
@@ -86,6 +87,9 @@ class FourWheelPlant:
         self._geometry_angles = None
         self.distance_scale = sensor.odometry_distance_scale
         self.yaw_scale = sensor.odometry_yaw_scale
+        self.wheel_pi = wheel_pi
+        self.wheel_pi_loop = (DualRearWheelPI(wheel_pi, self.rollout, self.cpr)
+                              if wheel_pi is not None else None)
 
     def wheel_footprints(self):
         """FL, FR, RL, RR rectangles, in rear-axle coordinates (forward x, right y)."""
@@ -148,14 +152,24 @@ class FourWheelPlant:
         self.front_angles = tuple(updated)
         return curvature
 
-    def advance(self, dt, pwm, center_cmd, front_target, motion, stress, x, y, yaw):
+    def advance(self, dt, pwm, center_cmd, front_target, motion, stress, x, y, yaw, *, speed_target=None):
         env = self.environment
         curvature = self.steer(front_target, motion, dt)
-        center = speed_for_pwm(pwm, motion.pwm_limit, motion.max_speed * motion.throttle_gain, motion.deadband_pwm)
         requested_curve = math.tan(math.radians(center_cmd)) / self.config.wheelbase
         factors = (1 - self.track * requested_curve / 2, 1 + self.track * requested_curve / 2)
-        if self.max_wheel_speed and center > 0:
-            center = min(center, self.max_wheel_speed / max(factors))
+        loop = self.wheel_pi_loop
+        if loop is None:
+            center = speed_for_pwm(pwm, motion.pwm_limit, motion.max_speed * motion.throttle_gain, motion.deadband_pwm)
+            if self.max_wheel_speed and center > 0:
+                center = min(center, self.max_wheel_speed / max(factors))
+        else:
+            if pwm <= 0:
+                loop.reset_outputs()
+            requested_center = (speed_for_pwm(pwm, motion.pwm_limit, motion.max_speed, motion.deadband_pwm)
+                                if speed_target is None else speed_target)
+            if self.max_wheel_speed and requested_center > 0:
+                requested_center = min(requested_center, self.max_wheel_speed / max(factors))
+            wheel_targets_mps = (requested_center * factors[0], requested_center * factors[1])
         speed = sum(self.ground_speeds) / 2
         slope_accel = 9.81 * env.grade_at(x) * math.cos(yaw)
         self.rough_floor_s += dt if slope_accel and speed > 0.03 else 0.0
@@ -167,7 +181,10 @@ class FourWheelPlant:
             if stress.combined_grip:
                 grip = min(grip, stress.grip_at(cx, cy))
             gain = env.left_motor_gain if idx == 0 else env.right_motor_gain
-            target = center * factors[idx] * env.supply_scale * gain
+            if loop is None:
+                target = center * factors[idx] * env.supply_scale * gain
+            else:
+                target = loop.actuation_speed(idx, motion) * env.supply_scale * gain * motion.throttle_gain
             current = self.ground_speeds[idx]
             if idx == 1 and env.stall_right_s is not None and self.elapsed_s >= env.stall_right_s:
                 target = current = 0.0
@@ -199,6 +216,8 @@ class FourWheelPlant:
         turn = (-0.8 * distance * curvature + 0.2 * rear_yaw) / max(1, lateral_ratio, *ratios)
         self.elapsed_s += dt
         self.encoder_counts = tuple(round(turns * cpr) for turns, cpr in zip(self.encoder_turns, self.cpr))
+        if loop is not None:
+            loop.update(self.encoder_counts, self.elapsed_s, wheel_targets_mps, active=pwm > 0)
         # Match the Nano dual-rear no-progress trip: both motors stop if a driven wheel
         # fails to accumulate two forward ticks in 350 ms. Host telemetry can fail independently.
         for idx, count in enumerate(self.encoder_counts):

@@ -21,6 +21,7 @@ from .courses import CHALLENGE_COURSES, Checkpoint, Scenario, track_outline
 from .indoor import ENVIRONMENTS
 from .four_wheel import FourWheelPlant, wheel_targets
 from .indoor import indoor_environment
+from .sensor_faults import SensorFaultModel
 
 
 SCAN_MS = 150
@@ -54,6 +55,10 @@ class SensorSettings:
     vibration_yaw_deg: float = 0.0
     spike_rate: float = 0.0
     guard_spikes: bool = True
+    burst_start_probability: float = 0.0
+    burst_length_points: int = 0
+    range_bias_sigma_mm: float = 0.0
+    delivery_jitter_ms: int = 0
 
 SENSOR_PROFILES = {
     "ideal": ("순간 스캔 (비교용)", SensorSettings(rolling=False, period_ms=SCAN_MS)),
@@ -66,6 +71,10 @@ SENSOR_PROFILES = {
                                             odometry_yaw_scale=0.92)),
     "vibration": ("진동·거리 튐", SensorSettings(angular_speed_ripple=0.23, pose_sample_ms=25,
                                                 vibration_mm=4, vibration_yaw_deg=0.7, spike_rate=0.015)),
+    "disturbed": ("연속 누락·편차·지터", SensorSettings(burst_start_probability=0.015,
+                                                        burst_length_points=5,
+                                                        range_bias_sigma_mm=15.0,
+                                                        delivery_jitter_ms=20)),
 }
 RAY_CLOCKS = ("sample-clock", "phase", "exact")
 
@@ -308,17 +317,24 @@ class Simulation:
                  feedback=False, stress=StressSettings(), audit_leases=False,
                  coast_on_scan_gap=False, measure_clearance=False, planner="legacy",
                  wall_threshold_m=0.10, vehicle_model="four-wheel", environment="nominal",
-                 environment_seed=None):
+                 environment_seed=None, environment_config=None, controller_motion=None,
+                 wheel_pi=None, speed_policy=None, sensor_calibration=None):
         if vehicle_model not in ("four-wheel", "legacy"):
             raise ValueError(f"Unknown vehicle model: {vehicle_model}")
+        if vehicle_model != "four-wheel" and (wheel_pi is not None or speed_policy is not None):
+            raise ValueError("Wheel PI and experimental speed policies require the four-wheel model")
         self.vehicle_model = vehicle_model
-        self.environment = indoor_environment(environment, sensor.seed if environment_seed is None else environment_seed)
+        seed = sensor.seed if environment_seed is None else environment_seed
+        self.environment = environment_config if environment_config is not None else indoor_environment(environment, seed)
         self.scenario = scenario
         self.motion = motion
+        controller_motion = motion if controller_motion is None else controller_motion
+        self.speed_policy = speed_policy
         self.lidar = sensor
         self.period_ms = sensor.period_ms
         self.deskew = deskew and (feedback or vehicle_model == "legacy")
         self.calibrate_lidar = calibrate_lidar
+        self.sensor_calibration = sensor_calibration
         self.feedback_enabled = feedback
         self.stress = stress
         if scenario.grip_zones and stress.grip_zones is LOW_GRIP_CORNERS:
@@ -353,20 +369,22 @@ class Simulation:
         self.peak_contact_ratio = 0.0
         self.random = random.Random(sensor.seed)
         self.vibration_random = random.Random(sensor.seed + 1)
+        self.sensor_faults = SensorFaultModel(sensor)
+        self.last_scan_delivery = None
         self.range_spikes = self.rejected_far = self.suspect_near = 0
         self.near_return_holds = 0
         self.waiting_for_near_return = False
-        self.config = TrackConfig(pwm=motion.pwm_limit,
-                                  min_turn_radius=motion.min_turn_radius if calibrated else 0,
+        self.config = TrackConfig(pwm=controller_motion.pwm_limit,
+                                  min_turn_radius=controller_motion.min_turn_radius if calibrated else 0,
                                   prefer_corner_clearance=planner in ("clearance", "route"),
                                   follow_route=planner == "route")
         self.controller = SpeedController(SpeedConfig(
-            max_speed=motion.max_speed, acceleration=motion.acceleration,
-            deceleration=motion.deceleration, lateral_accel=motion.lateral_accel,
-            delay_ms=self.period_ms + motion.sensor_delay_ms + motion.command_delay_ms,
-            deadband_pwm=motion.deadband_pwm, steering_delay_ms=motion.command_delay_ms,
-            steering_rate_deg_s=motion.steering_rate,
-            propulsion_delay_ms=motion.command_delay_ms) if calibrated else SpeedConfig())
+            max_speed=controller_motion.max_speed, acceleration=controller_motion.acceleration,
+            deceleration=controller_motion.deceleration, lateral_accel=controller_motion.lateral_accel,
+            delay_ms=self.period_ms + controller_motion.sensor_delay_ms + controller_motion.command_delay_ms,
+            deadband_pwm=controller_motion.deadband_pwm, steering_delay_ms=controller_motion.command_delay_ms,
+            steering_rate_deg_s=controller_motion.steering_rate,
+            propulsion_delay_ms=controller_motion.command_delay_ms) if calibrated else SpeedConfig())
         self.actuation = ActuationMonitor(self.controller.settings)
         self.walls = tuple(wall for wall in wall_segments(scenario.outlines + self.environment.obstacles)
                            if wall not in scenario.missing_walls)
@@ -374,7 +392,8 @@ class Simulation:
         self.rear_x = -self.config.sensor_ahead * math.cos(self.yaw)
         self.rear_y = scenario.start_y + self.environment.start_offset - self.config.sensor_ahead * math.sin(self.yaw)
         self.odometry = Pose(self.rear_x, self.rear_y, self.yaw)
-        self.plant = FourWheelPlant(self.config, self.environment, self.odometry, sensor) if vehicle_model == "four-wheel" else None
+        self.plant = (FourWheelPlant(self.config, self.environment, self.odometry, sensor, wheel_pi=wheel_pi)
+                      if vehicle_model == "four-wheel" else None)
         if calibrated and self.plant is not None:
             swept = self.plant.swept_envelope()
             self.config = replace(self.config, width=swept.width, front=swept.front, rear=swept.rear)
@@ -411,6 +430,7 @@ class Simulation:
         self.actual_steer = 0.0
         self.target_steer = 0.0
         self.applied_pwm = 0.0
+        self.applied_speed_target = None
         self.coast_commands = 0
         self.response = None
         self.peak_steer = 0.0
@@ -507,20 +527,25 @@ class Simulation:
             scheduled_gap = abs(relative) <= 45 and self.stress.fault("front-gap", measured)
             if manual_gap or scheduled_gap:
                 self.sweep_front_gap = True
+            burst_dropped = self.sensor_faults.next_beam_dropped()
             if manual_gap or not 0.15 <= distance <= lidar.max_range_m or self.random.random() < dropout:
                 self.sweep.append(LidarReturn(angle, 0.0, 0, measured))
                 self.weak_panel_misses += strength < 1.0
             else:
-                measured_range = 1000 * distance + lidar.offset_mm + self.random.gauss(
+                bias_mm = self.sensor_faults.range_bias_mm
+                measured_range = 1000 * distance + lidar.offset_mm + bias_mm + self.random.gauss(
                     0.0, lidar.noise_mm * (2 - incidence) / strength)
+                if bias_mm:
+                    measured_range = max(0.0, measured_range)
                 if lidar.spike_rate and self.vibration_random.random() < lidar.spike_rate * vibration:
                     amplitude = self.vibration_random.uniform(90, 230)
                     measured_range += amplitude if self.vibration_random.random() < 0.65 else -amplitude
-                    self.range_spikes += 1
+                    self.range_spikes += not burst_dropped
                 hit = pose.x + distance * dx, pose.y + distance * dy
                 quality = round((12 + 13 * incidence) * strength)
-                self.weak_panel_returns += strength < 1.0
-                if scheduled_gap:
+                self.weak_panel_returns += strength < 1.0 and not burst_dropped
+                self.weak_panel_misses += strength < 1.0 and burst_dropped
+                if scheduled_gap or burst_dropped:
                     self.sweep.append(LidarReturn(angle, 0.0, 0, measured))
                 else:
                     self.sweep.append(LidarReturn(angle, round(measured_range * 4) / 4, quality, measured, hit))
@@ -544,8 +569,10 @@ class Simulation:
         timed_beams = (Beam(beam.angle, beam.distance_mm, beam.quality, stamp,
                             pose_at(stamps, odometry, stamp) if deskew else reference)
                        for beam, stamp in zip(beams, beam_times))
-        sensor_yaw = self.lidar.yaw_deg if self.calibrate_lidar else 0.0
-        offset = self.lidar.offset_mm if self.calibrate_lidar else 0.0
+        sensor_yaw, offset = 0.0, 0.0
+        if self.calibrate_lidar:
+            nominal = self.sensor_calibration
+            sensor_yaw, offset = (self.lidar.yaw_deg, self.lidar.offset_mm) if nominal is None else nominal
         geometry = project_sweep(timed_beams, reference, yaw_deg=sensor_yaw, offset_mm=offset,
                                  deskew=deskew, guard_spikes=self.lidar.guard_spikes)
         self.scan_geometry = geometry
@@ -587,6 +614,8 @@ class Simulation:
         metrics = {"range_spikes": self.range_spikes, "far_rejected": self.rejected_far,
                    "near_suspect": self.suspect_near, "near_return_holds": self.near_return_holds,
                    "front_returns": self.front_return_count}
+        if self.sensor_faults.enabled:
+            metrics.update(burst_starts=self.sensor_faults.burst_starts, burst_drops=self.sensor_faults.burst_drops)
         if self.moving_return_count:
             for label, errors in zip(("raw", "corrected"), self.moving_error_sums):
                 metrics[f"moving_{label}_rms_mm"] = round(1000 * math.sqrt(errors / self.moving_return_count), 2)
@@ -603,7 +632,7 @@ class Simulation:
         return not self.collision and (self.stop_reason is None or self.speed > 0
                                        or self.applied_pwm > 0)
 
-    def queue_command(self, pwm, steer, lease=WATCHDOG_MS, *, cause="speed_control"):
+    def queue_command(self, pwm, steer, lease=WATCHDOG_MS, *, cause="speed_control", speed_target=None):
         if self.stress.fault("command-drop", self.now_ms):
             self.dropped_commands += 1
             return False
@@ -612,7 +641,8 @@ class Simulation:
         delivery = self.now_ms + self.motion.command_delay_ms + extra
         if self.commands:
             delivery = max(delivery, self.commands[-1][0])
-        self.commands.append((delivery, pwm, steer, lease, cause))
+        command = (delivery, pwm, steer, lease, cause)
+        self.commands.append(command if speed_target is None else (*command, speed_target))
         return True
 
     def apply_pwm(self, pwm, cause):
@@ -622,6 +652,7 @@ class Simulation:
         elif pwm > 0:
             self.power_cut_cause = None
         self.applied_pwm = pwm
+        self.applied_speed_target = None
 
     def power_cut_metrics(self):
         by_cause = {cause: dict(count=count, moving_off_s=self.power_cut_moving_ms[cause] / 1000)
@@ -658,17 +689,22 @@ class Simulation:
             else:
                 front_missing = self.drop_front or bool(self.stress.fault("front-gap", now))
                 samples = list(ray_scan(self.walls, *pose, self.config.forward_angle, front_missing))
+                if self.sensor_faults.enabled:
+                    samples = self.sensor_faults.apply_to_scan(samples)
             self.front_gap_scans += bool(front_missing)
             if self.stress.fault("scan-drop", now):
                 self.dropped_scans += 1
             else:
                 delivery = now + self.motion.sensor_delay_ms + self.stress.fault("scan-delay", now)
+                delivery = max(now, delivery + self.sensor_faults.sample_delivery_jitter_ms())
                 if self.lidar.rolling:
                     cadence = self.lidar.pose_sample_ms
                     delivery = max(delivery, math.ceil(now / cadence) * cadence)
                 if self.scans:
                     delivery = max(delivery, self.scans[-1][0])
                 self.scans.append((delivery, now, pose, samples))
+                self.last_scan_delivery = (now, delivery)
+            self.sensor_faults.advance_sweep()
             self.next_scan_ms += self.period_ms
         while self.scans and self.scans[0][0] <= now:
             _, capture_end, acquired_pose, samples = self.scans.popleft()
@@ -808,11 +844,13 @@ class Simulation:
                 and self.scan_deadline_ms is not None and now >= self.scan_deadline_ms):
             self.coast_for_missing_scan()
         while self.commands and self.commands[0][0] <= now:
-            self.last_command_ms, pwm, steer, *lease = self.commands.popleft()
-            self.apply_pwm(pwm, lease[1] if len(lease) > 1 else "speed_control")
+            self.last_command_ms, pwm, steer, *metadata = self.commands.popleft()
+            self.apply_pwm(pwm, metadata[1] if len(metadata) > 1 else "speed_control")
+            if pwm > 0 and len(metadata) > 2:
+                self.applied_speed_target = metadata[2]
             self.command_armed = self.stop_reason is None
             self.motion_bound.applied(self.applied_pwm > 0, now / 1000)
-            self.command_lease_ms = lease[0] if lease else WATCHDOG_MS
+            self.command_lease_ms = metadata[0] if metadata else WATCHDOG_MS
             actual_target = steer * self.motion.steer_gain + self.motion.steer_bias_deg
             self.command_steer = steer
             self.target_steer = max(-self.steer_limit, min(self.steer_limit, actual_target))
@@ -859,10 +897,17 @@ class Simulation:
             return
         interval = 0.15 if self.control_frame_end is None else min(0.38, end - self.control_frame_end)
         self.control_frame_end = end
+        if self.speed_policy is not None and feedback is not None and not gate.bridged:
+            scale = self.speed_policy(feedback.speed_mps, self.controller.target, self.decision.steer,
+                                      self.decision.clear_m, age)
+            if not math.isfinite(scale) or not 0 < scale <= 1:
+                raise ValueError("experimental speed policy must return a finite scale in (0, 1]")
+            cap = min(cap, settings.max_speed * scale)
         self.demand = self.controller.update(self.decision, self.config, interval, scan_age=age,
                                              speed_cap=min(cap, 0.15) if gate.bridged else cap,
                                              feedback=feedback)
-        if not self.queue_command(self.demand.pwm, self.decision.steer, gate.lease_ms):
+        speed_target = self.demand.speed if self.plant.wheel_pi_loop is not None else None
+        if not self.queue_command(self.demand.pwm, self.decision.steer, gate.lease_ms, speed_target=speed_target):
             return
         self.coast_commands += self.demand.phase == "coast"
         self.held_steer = self.decision.steer
@@ -1050,7 +1095,7 @@ class Simulation:
             plant.front_angles = wheel_targets(self.actual_steer, self.config.wheelbase, plant.pivot_track)
         travel, turn, curvature, lateral, demand, grip = plant.advance(
             dt, self.applied_pwm, self.command_steer, self.target_steer, self.motion, self.stress,
-            self.rear_x, self.rear_y, self.yaw)
+            self.rear_x, self.rear_y, self.yaw, speed_target=self.applied_speed_target)
         self.speed = sum(plant.ground_speeds) / 2
         self.actual_steer = math.degrees(math.atan(self.config.wheelbase * curvature))
         self.yaw_rate = turn / dt
