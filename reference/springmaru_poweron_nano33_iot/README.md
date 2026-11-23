@@ -35,7 +35,7 @@ Arduino IDE에서 진단 스케치를 열 때는 외부 clone의 `Nano33IoTWifiS
 | 통신 | TCP 5000 ASCII 명령 | TCP 8000 HTTP/1.1 JSON | 브라우저·`curl.exe`로 별도 네트워크 시험 |
 | 진단 정보 | `STATUS`·`NETWORK`·`PING` | NINA 버전·MAC·접속 상태 이름·SSID 목록 | 시작 시 펌웨어·MAC 표시를 향후 반영 후보로 보관 |
 | LED | `PING`마다 켜짐/꺼짐 변경 | 접속 시 켜짐, `/led/on`·`/led/off`로 설정 | 진단 펌웨어의 LED 동작은 따로 해석 |
-| 구동 명령 | `DRIVE`·`MOTOR`·`STEER`·`STOP`·`IDLE` | 없음 | 현재 `wifi_control.py`를 진단 스케치에 연결하지 않음 |
+| 구동 명령 | `DRIVE`·`MOTOR`·`STEER`·`STOP`·`IDLE` | 없음 | 현재 `python -m vehicle`를 진단 스케치에 연결하지 않음 |
 
 재사용하기 좋은 부분은 `wifiStatusName()`, `encryptionName()`, `printMacAddress()`, 초기 NINA 펌웨어 버전 출력입니다. `scanNetworks()`는 무선 검색에 사용할 수 있지만 반복 스캔을 현재 차량 제어 루프에 바로 넣지 않습니다. HTTP 처리에는 최대 1초 대기 루프가 있고 Wi-Fi 접속에는 20초 타임아웃 설정이 있으므로, 현재 모터·서보 제어와 결합하려면 응답 지연과 연결 해제 처리를 다시 검토해야 합니다. 이번 작업은 참고 자료 정리이며 현재 구동 코드에 이 기능들을 합치지 않았습니다.
 
@@ -67,7 +67,7 @@ curl.exe --connect-timeout 3 --max-time 5 "http://${nanoIp}:8000/led/off"
 
 브라우저에서도 `http://<Nano IP>:8000/ping`을 열 수 있습니다. HTTP 주소는 진단 펌웨어를 업로드한 경우에만 사용합니다. 시리얼의 `HTTP test server: ...` 문구는 `server.begin()` 호출 뒤 출력되며, 실제 접속 성공은 `/ping`의 JSON 응답으로 확인합니다. 원본 스케치는 로컬 진단용으로 인증 기능이 없습니다.
 
-6. 시험을 마치면 구동부를 분리한 상태에서 **`C:\Users\user\Arduino\Nano_33_IoT\Nano_33_IoT.ino`**를 다시 업로드합니다. 기존 개인 `wifi_secrets.h`를 사용하고 메인 `READY`·`STATUS`·`NETWORK` 응답을 확인한 뒤, [메인 배선·시험 순서](../../WIRING.ko.md)를 따릅니다.
+6. 시험을 마치면 구동부를 분리한 상태에서 [메인 스케치](../../vehicle/firmware/PowerOnNano/PowerOnNano.ino)를 다시 업로드합니다. 기존 개인 `wifi_secrets.h`를 사용하고 메인 `READY`·`STATUS`·`NETWORK` 응답을 확인한 뒤, [메인 배선·시험 순서](../../vehicle/firmware/wiring.ko.md)를 따릅니다.
 
 `arduino_secrets.h`는 외부 원본과 PowerOn 양쪽의 `.gitignore`에서 제외합니다. 실제 접속 정보는 이번 작업에서 새로 복사하거나 생성하지 않았습니다.
 

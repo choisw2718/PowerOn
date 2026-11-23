@@ -1,0 +1,106 @@
+{
+  "cad": {
+    "source_name": {"value": "body-3.5.f3d", "note": "사용자 제공 Fusion 차체 설계."},
+    "source_sha256": {"value": "3dce631c2bba9fd7b5902213f6cb2d24145bbe9524ab88e3882d6cd74e8c7650", "note": "치수 확인에 사용한 원본 파일의 SHA-256."},
+    "hardware_revision": {"value": "body-3.5-four-wheel", "note": "전륜 개별 조향 서보 2개, 후륜 개별 모터·엔코더 2개. 부품이나 배선 변경 시 개정."}
+  },
+  "chassis": {
+    "plate_width_m": {"value": 0.150, "note": "body-3.5 설계 스케치와 X ±75 mm 모서리. 타이어 돌출 별도."},
+    "plate_length_m": {"value": 0.200, "note": "body-3.5 설계 스케치와 Y ±100 mm 모서리. 조립 외곽은 실측 필요."},
+    "wheelbase_m": {"value": 0.13324, "note": "도면 추정. 완성차에서 재측정."},
+    "steering_pivot_track_m": {"value": 0.12120, "note": "도면과 HS-311 치수로 추정한 회전축 간격. 실측 필요."},
+    "width_m": {"value": 0.23, "note": "임시. 타이어와 돌출부를 포함한 최대 폭 실측 필요."},
+    "front_from_lidar_m": {"value": 0.15, "note": "임시. 라이다 중심에서 차량 맨 앞까지 실측 필요."},
+    "rear_from_lidar_m": {"value": 0.15, "note": "임시. 라이다 중심에서 차량 맨 뒤까지 실측 필요."},
+    "min_turn_radius_m": {"value": 0.25, "note": "임시. 뒷차축 중심의 좌우 최소 회전 반경을 각각 실측."}
+  },
+  "steering": {
+    "wheel_min_deg": {"value": -45.0, "note": "펌웨어 내부 바퀴 각도 제한. 타이어·링크 간섭 한계 실측 필요."},
+    "wheel_max_deg": {"value": 55.0, "note": "펌웨어 내부 바퀴 각도 제한. 타이어·링크 간섭 한계 실측 필요."},
+    "manual_max_center_deg": {"value": 30.0, "note": "수동 조종기 명령 상한. 좌우 같은 크기."},
+    "channels_crossed": {"value": true, "note": "D5→오른쪽, D6→왼쪽으로 설정. 실물 채널 확인 필요."},
+    "d5_direction": {"value": 1.0, "note": "코드 부호. 조향 방향 확인 필요."},
+    "d6_direction": {"value": 1.0, "note": "코드 부호. 조향 방향 확인 필요."},
+    "d5_us_per_deg": {"value": 10.0, "note": "명목값. 하중 상태에서 명령 대비 각도 실측 필요."},
+    "d6_us_per_deg": {"value": 10.0, "note": "명목값. 하중 상태에서 명령 대비 각도 실측 필요."},
+    "right_aligned_d5_us": {"value": 1597, "note": "2차 정렬 관찰. 현재 D5 중립."},
+    "right_aligned_d6_us": {"value": 1952, "note": "2차 정렬 관찰 당시 상한에 닿음. 현재 중립에 사용하지 않음."},
+    "left_aligned_d5_us": {"value": 1001, "note": "2차 정렬 관찰. 현재 중립에 사용하지 않음."},
+    "left_aligned_d6_us": {"value": 1416, "note": "2차 정렬 관찰. 현재 D6 중립."},
+    "d5_min_us": {"value": 948, "note": "코드 펄스 하한. 기구 한계 실측 필요."},
+    "d5_max_us": {"value": 1948, "note": "코드 펄스 상한. 기구 한계 실측 필요."},
+    "d6_min_us": {"value": 952, "note": "코드 펄스 하한. 기구 한계 실측 필요."},
+    "d6_max_us": {"value": 1952, "note": "코드 펄스 상한. 기구 한계 실측 필요."}
+  },
+  "motor": {
+    "nominal_supply_v": {"value": 12.0, "note": "명령 환산용 전압. 모터 정격과 부하 시 전압은 미확인."},
+    "manual_start_v": {"value": 7.0, "note": "기존 수동 명령의 기동 보정. 실제 기동 PWM 실측 필요."}
+  },
+  "dual_rear": {
+    "selected": {"value": true, "note": "true: 듀얼 후륜, false: 기존 중앙 후륜."},
+    "rear_track_m": {"value": 0.0, "note": "좌우 후륜 타이어 중심 간격 실측."},
+    "left_rollout_m": {"value": 0.0, "note": "적재 상태 왼쪽 후륜 유효 둘레."},
+    "right_rollout_m": {"value": 0.0, "note": "적재 상태 오른쪽 후륜 유효 둘레."},
+    "left_counts_per_rev": {"value": 0.0, "note": "왼쪽 타이어 1회전당 A/B x4 카운트 실측."},
+    "right_counts_per_rev": {"value": 0.0, "note": "오른쪽 타이어 1회전당 A/B x4 카운트 실측."},
+    "left_motor_sign": {"value": 0, "note": "정방향 IN1/IN2 또는 IN3/IN4 배선 기준 +1 또는 -1."},
+    "right_motor_sign": {"value": 0, "note": "정방향 모터 부호 +1 또는 -1."},
+    "left_encoder_sign": {"value": 0, "note": "차량 전진 시 카운트가 양수가 되도록 +1 또는 -1."},
+    "right_encoder_sign": {"value": 0, "note": "차량 전진 시 카운트가 양수가 되도록 +1 또는 -1."},
+    "bench_pwm_pct": {"value": 0.0, "note": "바퀴를 띄운 배선 시험용 상한. 0: 차단. 설정 가능 범위 0~10%."},
+    "max_pwm_pct": {"value": 0.0, "note": "실측에 기반해 정하는 폐루프 듀티 상한."},
+    "max_wheel_speed_mps": {"value": 0.0, "note": "좌우 바퀴 각각의 속도 상한. 코너에서도 적용."},
+    "target_accel_mps2": {"value": 0.0, "note": "목표 중심 속도 상승률 제한."},
+    "motor_bus_v": {"value": 0.0, "note": "시험 전원의 실측 모터 버스 전압. 단자 전압 피드백 입력은 없음."},
+    "left_ff_v_per_mps": {"value": 0.0, "note": "왼쪽 속도별 전압 피드포워드 기울기. 0이면 비활성."},
+    "right_ff_v_per_mps": {"value": 0.0, "note": "오른쪽 속도별 전압 피드포워드 기울기. 0이면 비활성."},
+    "left_kp": {"value": 0.0, "note": "왼쪽 비례 이득 V/(m/s)."},
+    "right_kp": {"value": 0.0, "note": "오른쪽 비례 이득 V/(m/s)."},
+    "left_ki": {"value": 0.0, "note": "왼쪽 적분 이득 V/m."},
+    "right_ki": {"value": 0.0, "note": "오른쪽 적분 이득 V/m."}
+  },
+  "ir_sensors": {
+    "left_installed": {"value": false, "note": "A0 왼쪽. 장착 계획, 미장착."},
+    "front_installed": {"value": false, "note": "A1 전방. 장착 계획, 미장착."},
+    "right_installed": {"value": false, "note": "A2 오른쪽. 과거 ADC 시험 기록이 있으며 현재 미장착."}
+  },
+  "lidar": {
+    "forward_angle_deg": {"value": 0.0, "note": "임시. 차량 전방을 향하는 라이다 원시 각도 실측 필요."},
+    "ahead_of_rear_axle_m": {"value": 0.06662, "note": "임시. 축간거리의 절반을 가정. 장착 후 실측 필요."},
+    "range_offset_mm": {"value": 0.0, "note": "임시. 기준 물체로 거리 편차 실측 필요."},
+    "max_center_steer_deg": {"value": 28.0, "note": "Nano 라이다 주행 명령의 좌우 중심각 상한."},
+    "max_pwm_pct": {"value": 65.0, "note": "Nano 라이다 주행 명령의 전진 PWM 상한."},
+    "max_lease_ms": {"value": 500, "note": "Nano 라이다 주행 명령의 최대 유효시간."},
+    "preview_pwm_pct": {"value": 45.0, "note": "시뮬레이션·미리보기 기준 PWM. 실제 속도와 기동 PWM 실측 필요."},
+    "stop_distance_m": {"value": 0.30, "note": "임시. 반응 지연과 관성 이동을 포함한 정지 거리 실측 필요."},
+    "body_margin_m": {"value": 0.06, "note": "계획 계산의 여유 거리. 시뮬레이션·실측 결과로 조정."}
+  },
+  "motion": {
+    "max_speed_mps": {"value": 0.42, "note": "임시. 기준 PWM에서 최고 속도 실측 필요."},
+    "acceleration_mps2": {"value": 0.60, "note": "임시. 장비를 탑재한 상태에서 실측 필요."},
+    "deceleration_mps2": {"value": 0.55, "note": "임시. PWM 차단 후 노면별 관성 감속 실측 필요."},
+    "lateral_acceleration_mps2": {"value": 0.32, "note": "임시. 노면과 타이어 상태별 코너 한계 확인 필요."},
+    "delay_ms": {"value": 180, "note": "계획기 임시 합산 지연. 센서·통신·구동 응답 실측 필요."},
+    "deadband_pwm_pct": {"value": 0.0, "note": "임시. 적재 상태에서 실제 기동 PWM 실측 필요."},
+    "steering_delay_ms": {"value": 80.0, "note": "계획기 임시값. 명령에서 조향 응답까지 실측 필요."},
+    "steering_rate_deg_s": {"value": 75.0, "note": "계획기 임시값. 부하 상태의 중심각 변화율 실측 필요."},
+    "propulsion_delay_ms": {"value": 85.0, "note": "계획기 임시값. 명령에서 속도 응답까지 실측 필요."}
+  },
+  "simulation": {
+    "front_arm_m": {"value": 0.040, "note": "가상 앞바퀴 링크의 유효 길이. 이전 차체 명목값이며 조립 후 실측."},
+    "bumper_extension_m": {"value": 0.005, "note": "판 앞뒤 끝에서 각각 더한 가상 범퍼 돌출량. 실측 전 가정."},
+    "lidar_height_m": {"value": 0.110, "note": "가상 측정면의 바닥 높이. 문턱에서 바닥 반사가 생기는 조건 계산용."},
+    "rear_track_m": {"value": 0.145, "note": "가상차 전용 후륜 중심 간격 추정. 보정된 dual_rear 값 우선."},
+    "left_rollout_m": {"value": 0.1885, "note": "왼쪽 후륜 1회전 이동거리 추정. 부하 상태에서 바닥에 표시해 실측."},
+    "right_rollout_m": {"value": 0.1885, "note": "오른쪽 후륜 1회전 이동거리 추정. 실제 좌우 차이 별도 보정."},
+    "left_counts_per_rev": {"value": 360, "note": "가상 왼쪽 휠 1회전당 유효 카운트. 실제 분해능 미확인."},
+    "right_counts_per_rev": {"value": 360, "note": "가상 오른쪽 휠 1회전당 유효 카운트. 실제 분해능 미확인."},
+    "tire_width_m": {"value": 0.022, "note": "가상 타이어 폭. 실차 바퀴 돌출과 함께 측정."},
+    "scan_period_ms": {"value": 166, "note": "가상 회전 스캔 주기. 실제 주기는 수신 기록에서 확인."},
+    "point_rate_hz": {"value": 1950, "note": "가상 표준 스캔의 초당 표본 수. 실제 수신률은 설정과 장비 상태에 따라 달라짐."},
+    "max_range_m": {"value": 12.0, "note": "제조사 흰색 표적 기준을 모델 상한에 사용. 실제 트랙 재질에서 측정 필요."},
+    "sensor_delay_ms": {"value": 35, "note": "시뮬레이션 기준 지연. 실측 필요."},
+    "command_delay_ms": {"value": 35, "note": "시뮬레이션 기준 지연. 실측 필요."},
+    "steering_rate_deg_s": {"value": 150.0, "note": "가상 차량의 조향 변화율. 실차 실측 필요."}
+  }
+}
