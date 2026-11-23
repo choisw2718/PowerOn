@@ -87,16 +87,20 @@ class Result:
 
 def run_case(case, seed, laps, max_seconds, *, scenario="loop", profile="baseline",
              sensor=DEFAULT_SENSOR, policy="baseline", min_clearance_m=0.10, max_recovery_s=1.25,
-             planner="route", vehicle_model="four-wheel", environment="nominal", feedback=True, max_speed=None):
+             planner="route", vehicle_model="four-wheel", environment="nominal", feedback=True, max_speed=None,
+             motion_config=None, environment_config=None, wheel_pi=None, sensor_calibration=None):
     sensor = replace(sensor, seed=seed)
     stress = STRESS_PROFILES[case]
-    motion = MOTION_PRESETS[profile][1]
+    controller_motion = MOTION_PRESETS[profile][1]
     if max_speed is not None:
-        motion = replace(motion, max_speed=max_speed)
+        controller_motion = replace(controller_motion, max_speed=max_speed)
+    motion = motion_config if motion_config is not None else controller_motion
     sim = Simulation(SCENARIOS[scenario], motion, sensor=sensor, feedback=feedback,
                      stress=stress, audit_leases=True, coast_on_scan_gap=policy == "scan-coast",
                      measure_clearance=True, wall_threshold_m=min_clearance_m, planner=planner,
-                     vehicle_model=vehicle_model, environment=environment)
+                     vehicle_model=vehicle_model, environment=environment,
+                     controller_motion=controller_motion, environment_config=environment_config, wheel_pi=wheel_pi,
+                     sensor_calibration=sensor_calibration)
     limit_ms = math.floor(max_seconds * 1000)
     fault_start_ms = None
     expected_reasons = set()
@@ -159,7 +163,7 @@ def run_case(case, seed, laps, max_seconds, *, scenario="loop", profile="baselin
     if sim.scenario.checkpoints and sim.now_ms > sim.split_start_ms:
         sectors.append(sim.current_split())
     return Result(
-        vehicle_model=vehicle_model, environment=environment,
+        vehicle_model=vehicle_model, environment=sim.environment.name,
         observation=("unmeasured" if not feedback else "encoder" if vehicle_model == "four-wheel" else "legacy-state"),
         rear_encoder_counts=sim.plant.encoder_counts if vehicle_model == "four-wheel" else None,
         scenario=scenario, case=case, seed=seed, policy=policy, planner=planner,
